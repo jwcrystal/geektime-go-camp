@@ -1,6 +1,9 @@
 package web
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type node struct {
 	path string
@@ -19,8 +22,14 @@ func NewRouter() *Router {
 	return &Router{trees: map[string]*node{}}
 }
 
-func (r *Router) AddRoute(method string, path string, handlerFunc HandleFunc) {
-	// find tree
+// Add the striction
+
+// addRoute path must start with "/", not end with "/", not continues with "//"
+func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
+	if path == "" {
+		panic("web: path is empty")
+	}
+	// find tree first
 	root, ok := r.trees[method]
 
 	if !ok {
@@ -31,21 +40,40 @@ func (r *Router) AddRoute(method string, path string, handlerFunc HandleFunc) {
 		r.trees[method] = root
 	}
 
+	// start
+	if path[0] != '/' {
+		panic("web: not start with '/'")
+	}
+	// end
+	if path != "/" && path[len(path)-1] == '/' {
+		panic("web: end with '/'")
+	}
+	// continuous in the path, be with strings.contains("//")
+
 	// handle root "/"
 	if path == "/" {
+		// route "/" register twice
+		if root.handler != nil {
+			panic("web: the route conflicts, register twice")
+		}
 		root.handler = handlerFunc
 		return
 	}
 
 	// avoid first segment "/"
 	// e.g. /user/home => divided to 3 segments
-	path = path[1:]
 	// parse paths
-	segs := strings.Split(path, "/")
+	segs := strings.Split(path[1:], "/")
 	for _, seg := range segs {
+		if seg == "" {
+			panic("web: no continuous '//' ")
+		}
 		// create node if it does not exist
 		children := root.childOrCreate(seg)
 		root = children
+	}
+	if root.handler != nil {
+		panic(fmt.Sprintf("web: the route conflicts, %s register twice", path))
 	}
 	// there is a handleFunc at the leaf
 	root.handler = handlerFunc

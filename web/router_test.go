@@ -46,7 +46,7 @@ func TestRouter_AddRoute(t *testing.T) {
 	r := NewRouter()
 	for _, route := range testRoutes {
 		// 測試route，不需要理會handler處理
-		r.AddRoute(route.method, route.path, mockHandler)
+		r.addRoute(route.method, route.path, mockHandler)
 	}
 
 	// 斷言 route tree 跟預期的一樣
@@ -102,6 +102,40 @@ func TestRouter_AddRoute(t *testing.T) {
 	//assert.Equal(t, wantRouter, r)
 	msg, ok := wantRouter.equal(r)
 	assert.True(t, ok, msg)
+
+	// 處理abnormal route （非法路由）
+	r = NewRouter()
+	// empty path
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "", mockHandler)
+	}, "web: not start with '/'")
+	// not start with "/"
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "login", mockHandler)
+	}, "web: not start with '/'")
+	// end with "/"
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/login/", mockHandler)
+	}, "web: end with '/'")
+	// Continuous "//"
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "//login", mockHandler)
+	}, "web: no continuous '//' ")
+
+	r = NewRouter()
+	r.addRoute(http.MethodGet, "/", mockHandler)
+	// root node register twice
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/", mockHandler)
+	}, "web: the route conflicts, '/' register twice")
+	// node register twice
+	r = NewRouter()
+	r.addRoute(http.MethodGet, "/a/b/c", mockHandler)
+	// root node register twice
+	assert.PanicsWithValue(t, fmt.Sprintf("web: the route conflicts, /a/b/c register twice"), func() {
+		r.addRoute(http.MethodGet, "/a/b/c", mockHandler)
+
+	})
 }
 
 func (r *Router) equal(y *Router) (string, bool) {
