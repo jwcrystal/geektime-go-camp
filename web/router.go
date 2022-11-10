@@ -22,7 +22,7 @@ func NewRouter() *Router {
 	return &Router{trees: map[string]*node{}}
 }
 
-// Add the striction
+// Add the restriction
 
 // addRoute path must start with "/", not end with "/", not continues with "//"
 func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
@@ -77,6 +77,10 @@ func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
 	}
 	// there is a handleFunc at the leaf
 	root.handler = handlerFunc
+}
+
+func (r *Router) findRoute(method string, path string) (*Router, bool) {
+	return &Router{}, false
 }
 
 func (n *node) childOrCreate(seg string) *node {
