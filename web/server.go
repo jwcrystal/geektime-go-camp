@@ -17,10 +17,10 @@ type Server interface {
 var _ Server = &HttpServer{}
 
 type HttpServer struct {
-	*Router
+	router *Router
 }
 
-func (h *HttpServer) NewHttpServer() *HttpServer {
+func NewHttpServer() *HttpServer {
 	return &HttpServer{
 		NewRouter(),
 	}
@@ -30,8 +30,8 @@ func (h *HttpServer) NewHttpServer() *HttpServer {
 func (h *HttpServer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	// endpoint logic
 	ctx := &Context{
-		req: request,
-		res: writer,
+		Req: request,
+		Res: writer,
 	}
 	// find the routes, and launch handleFunc
 	h.serve(ctx)
@@ -55,7 +55,7 @@ func (h *HttpServer) Start1(addr string) error {
 }
 
 func (h *HttpServer) addRoute(method string, path string, handler HandleFunc) {
-
+	h.router.addRoute(method, path, handler)
 }
 
 func (h *HttpServer) Get(path string, handleFunc HandleFunc) {
@@ -68,8 +68,11 @@ func (h *HttpServer) Post(path string, handleFunc HandleFunc) {
 
 func (h *HttpServer) serve(ctx *Context) {
 	// find route
-	//route, ok := h.findRoute(ctx.req.Method, ctx.req.URL.Path)
-	//if !ok || route.trees{
-	//
-	//}
+	route, ok := h.router.findRoute(ctx.Req.Method, ctx.Req.URL.Path)
+	if !ok {
+		ctx.Res.WriteHeader(http.StatusNotFound)
+		ctx.Res.Write([]byte("Not found"))
+		return
+	}
+	route.handler(ctx)
 }

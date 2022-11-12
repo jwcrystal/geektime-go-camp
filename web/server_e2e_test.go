@@ -1,15 +1,17 @@
+//go:build e2e
+
 package web
 
 import "testing"
 
 func TestHttpServer(t *testing.T) {
-	s := &HttpServer{}
+	s := NewHttpServer()
 
 	s.Get("/", func(ctx *Context) {
-		ctx.res.Write([]byte("hello, world"))
+		ctx.Res.Write([]byte("hello, world"))
 	})
 
-	err := s.Start(":8080")
+	err := s.Start(":8081")
 	if err != nil {
 		return
 	}

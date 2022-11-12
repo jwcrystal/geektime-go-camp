@@ -69,8 +69,8 @@ func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
 			panic("web: no continuous '//' ")
 		}
 		// create node if it does not exist
-		children := root.childOrCreate(seg)
-		root = children
+		child := root.childOrCreate(seg)
+		root = child
 	}
 	if root.handler != nil {
 		panic(fmt.Sprintf("web: the route conflicts, %s register twice", path))
@@ -79,8 +79,28 @@ func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
 	root.handler = handlerFunc
 }
 
-func (r *Router) findRoute(method string, path string) (*Router, bool) {
-	return &Router{}, false
+func (r *Router) findRoute(method string, path string) (*node, bool) {
+	root, ok := r.trees[method]
+	if !ok {
+		return nil, false
+	}
+
+	if path == "/" {
+		return root, true
+	}
+
+	// Trim head and tail with "/"
+	segs := strings.Split(strings.Trim(path, "/"), "/")
+	for _, seg := range segs {
+		child, found := root.childOf(seg)
+		if !found {
+			return nil, false
+		}
+		root = child
+	}
+	// return "true" => 不會處理node有無handler的情況
+	//return root, true
+	return root, root.handler != nil
 }
 
 func (n *node) childOrCreate(seg string) *node {
@@ -96,4 +116,12 @@ func (n *node) childOrCreate(seg string) *node {
 		n.children[seg] = res
 	}
 	return res
+}
+
+func (n *node) childOf(path string) (*node, bool) {
+	if n.children == nil {
+		return nil, false
+	}
+	res, ok := n.children[path]
+	return res, ok
 }
