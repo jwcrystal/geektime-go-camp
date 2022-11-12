@@ -32,6 +32,27 @@ func TestRouter_AddRoute(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/order/detail",
 		},
+		// 通配符測試用例
+		{
+			method: http.MethodGet,
+			path:   "/order/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*/aaa",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*/aaa/*",
+		},
 		{
 			method: http.MethodPost,
 			path:   "/order/create",
@@ -39,6 +60,11 @@ func TestRouter_AddRoute(t *testing.T) {
 		{
 			method: http.MethodPost,
 			path:   "/login",
+		},
+		// 參數路由
+		{
+			method: http.MethodGet,
+			path:   "/user/:id",
 		},
 	}
 
@@ -74,6 +100,28 @@ func TestRouter_AddRoute(t *testing.T) {
 								handler: mockHandler,
 							},
 						},
+						starChild: &node{
+							path:    "*",
+							handler: mockHandler,
+						},
+					},
+				},
+				starChild: &node{
+					path:    "*",
+					handler: mockHandler,
+					children: map[string]*node{
+						"aaa": {
+							path: "aaa",
+							starChild: &node{
+								path:    "*",
+								handler: mockHandler,
+							},
+							handler: mockHandler,
+						},
+					},
+					starChild: &node{
+						path:    "*",
+						handler: mockHandler,
 					},
 				},
 			},
@@ -153,11 +201,21 @@ func (r *Router) equal(y *Router) (string, bool) {
 }
 
 func (n *node) equal(y *node) (string, bool) {
+	if y == nil {
+		return fmt.Sprintf("Node path %s not found", y.path), false
+	}
 	if n.path != y.path {
-		return fmt.Sprintf("the node path was not matched"), false
+		return fmt.Sprintf("the node path does not matched"), false
 	}
 	if len(n.children) != len(y.children) {
 		return fmt.Sprintf("the number of children was not matched"), false
+	}
+
+	if n.starChild != nil {
+		msg, ok := n.starChild.equal(y.starChild)
+		if !ok {
+			return msg, ok
+		}
 	}
 
 	// 比較 handler
@@ -211,6 +269,19 @@ func TestRouter_findRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/login",
 		},
+		//// 通配符測試用例
+		{
+			method: http.MethodPost,
+			path:   "/order/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/*/home",
+		},
+		//{
+		//	method: http.MethodGet,
+		//	path:   "/*",
+		//},
 	}
 
 	mockHandler := func(ctx *Context) {}
@@ -228,42 +299,92 @@ func TestRouter_findRoute(t *testing.T) {
 	}{
 		{
 			// method does not exist
-			method: http.MethodOptions,
-			path:   "/a/b/b",
+			name:   "method not found",
+			method: http.MethodHead,
 		},
 		{
-			// 完全命中
+			name:   "path not found",
+			method: http.MethodGet,
+			path:   "/abc",
+		},
+		{
 			name:      "root",
 			method:    http.MethodGet,
-			path:      "/user",
+			path:      "/",
 			wantFound: true,
 			wantNode: &node{
-				path:    "user",
+				path:    "/",
 				handler: mockHandler,
-				children: map[string]*node{
-					"home": {
-						path:    "home",
-						handler: mockHandler,
-					},
-				},
 			},
 		},
 		{
-			// 命中了，但no handler
-			name:      "no handler",
+			// 完全命中
+			name:      "user home",
 			method:    http.MethodGet,
+			path:      "/user/home",
+			wantFound: true,
+			wantNode: &node{
+				path:    "home",
+				handler: mockHandler,
+			},
+		},
+		{
+			// 完全命中
+			name:      "order detail",
+			method:    http.MethodGet,
+			path:      "/order/detail",
+			wantFound: true,
+			wantNode: &node{
+				path:    "detail",
+				handler: mockHandler,
+			},
+		},
+		{
+			name:      "no handler",
+			method:    http.MethodPost,
 			path:      "/order",
 			wantFound: true,
 			wantNode: &node{
 				path: "order",
-				//handler: mockHandler,
-				children: map[string]*node{
-					"detail": {
-						path:    "detail",
-						handler: mockHandler,
-					},
-				},
 			},
+		},
+		{
+			name:      "two layer",
+			method:    http.MethodPost,
+			path:      "/order/create",
+			wantFound: true,
+			wantNode: &node{
+				path:    "create",
+				handler: mockHandler,
+			},
+		},
+		{
+			// 命中 /order/*, * matched
+			name:      "star matched",
+			method:    http.MethodPost,
+			path:      "/order/home",
+			wantFound: true,
+			wantNode: &node{
+				path:    "*",
+				handler: mockHandler,
+			},
+		},
+		{
+			// 命中 /order/*/home, * matched
+			name:      "star in the middle",
+			method:    http.MethodGet,
+			path:      "/user/user/home",
+			wantFound: true,
+			wantNode: &node{
+				path:    "home",
+				handler: mockHandler,
+			},
+		},
+		{
+			// 比 /order/* 多了一段
+			name:   "overflow",
+			method: http.MethodPost,
+			path:   "/order/delete/123",
 		},
 	}
 
@@ -276,8 +397,12 @@ func TestRouter_findRoute(t *testing.T) {
 			}
 			// handler 無法比較
 			//assert.Equal(t, tc.wantNode, n)
-			msg, ok := tc.wantNode.equal(n)
-			assert.True(t, ok, msg)
+			//msg, ok := tc.wantNode.equal(n)
+			//assert.True(t, ok, msg)
+			assert.Equal(t, tc.wantNode.path, n.path)
+			wantVal := reflect.ValueOf(tc.wantNode.handler)
+			nVal := reflect.ValueOf(n.handler)
+			assert.Equal(t, wantVal, nVal)
 		})
 	}
 }

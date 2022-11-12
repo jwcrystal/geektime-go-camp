@@ -9,6 +9,13 @@ type node struct {
 	path string
 	// sub-node
 	children map[string]*node
+
+	// 通配符 "*"
+	starChild *node
+
+	// 參數路由
+	paramChild *node
+
 	// non-core operation
 	handler HandleFunc
 }
@@ -29,6 +36,16 @@ func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
 	if path == "" {
 		panic("web: path is empty")
 	}
+	// start
+	if path[0] != '/' {
+		panic("web: not start with '/'")
+	}
+	// end
+	if path != "/" && path[len(path)-1] == '/' {
+		panic("web: end with '/'")
+	}
+	// continuous in the path, be with strings.contains("//")
+
 	// find tree first
 	root, ok := r.trees[method]
 
@@ -39,16 +56,6 @@ func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
 		}
 		r.trees[method] = root
 	}
-
-	// start
-	if path[0] != '/' {
-		panic("web: not start with '/'")
-	}
-	// end
-	if path != "/" && path[len(path)-1] == '/' {
-		panic("web: end with '/'")
-	}
-	// continuous in the path, be with strings.contains("//")
 
 	// handle root "/"
 	if path == "/" {
@@ -69,8 +76,7 @@ func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
 			panic("web: no continuous '//' ")
 		}
 		// create node if it does not exist
-		child := root.childOrCreate(seg)
-		root = child
+		root = root.childOrCreate(seg)
 	}
 	if root.handler != nil {
 		panic(fmt.Sprintf("web: the route conflicts, %s register twice", path))
@@ -99,11 +105,35 @@ func (r *Router) findRoute(method string, path string) (*node, bool) {
 		root = child
 	}
 	// return "true" => 不會處理node有無handler的情況
-	//return root, true
 	return root, root.handler != nil
 }
 
 func (n *node) childOrCreate(seg string) *node {
+	if seg == "*" {
+		if n.paramChild != nil {
+			panic(fmt.Sprintf("web: invalid route, there is a parameter path"))
+		}
+		if n.starChild == nil {
+			n.starChild = &node{
+				path: seg,
+			}
+		}
+		return n.starChild
+	}
+	// 要規定通配和參數路由，誰的優先級高
+	if seg[0] == ':' {
+		if n.starChild != nil {
+			panic(fmt.Sprintf("web: invalid route, there is a star path"))
+		}
+		if n.paramChild != nil {
+			if n.paramChild.path != seg {
+				panic(fmt.Sprintf("web: route conflict"))
+			}
+		}
+		n.paramChild = &node{path: seg}
+		return n.paramChild
+	}
+
 	if n.children == nil {
 		n.children = make(map[string]*node)
 	}
@@ -118,10 +148,14 @@ func (n *node) childOrCreate(seg string) *node {
 	return res
 }
 
+// 優先匹配靜態路由，其次通配符匹配
 func (n *node) childOf(path string) (*node, bool) {
 	if n.children == nil {
-		return nil, false
+		return n.starChild, n.starChild != nil
 	}
 	res, ok := n.children[path]
+	if !ok {
+		return n.starChild, n.starChild != nil
+	}
 	return res, ok
 }

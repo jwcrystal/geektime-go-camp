@@ -2,13 +2,19 @@
 
 package web
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestHttpServer(t *testing.T) {
 	s := NewHttpServer()
 
 	s.Get("/", func(ctx *Context) {
 		ctx.Res.Write([]byte("hello, world"))
+	})
+	s.Get("/abc/*", func(ctx *Context) {
+		ctx.Res.Write([]byte(fmt.Sprintf("hello, %s", ctx.Req.URL.Path)))
 	})
 
 	err := s.Start(":8081")
