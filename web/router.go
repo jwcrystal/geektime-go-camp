@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -28,6 +29,12 @@ type node struct {
 
 	// 參數路由
 	paramChild *node
+	// 參數字段，與正則路由共用
+	paramString string
+
+	// 正則路由
+	regChild      *node
+	reqExpPattern *regexp.Regexp
 
 	// non-core operation
 	handler HandleFunc
@@ -123,6 +130,7 @@ func (r *Router) findRoute(method string, path string) (*matchInfo, bool) {
 		child, paramChild, found := root.childOf(seg)
 		if !found {
 			// 檢查是否為通配末尾，支援多段路由
+			// 可以用 type區分 ，或是 通配後字段是否結束 來區分
 			// /order/*
 			// /order/detail/123 (x)
 			// /order/detail/123/456 (x)
@@ -140,7 +148,9 @@ func (r *Router) findRoute(method string, path string) (*matchInfo, bool) {
 				pathParams = make(map[string]string)
 			}
 			// 參數路由格式為 :id
-			pathParams[child.path[1:]] = seg
+			// 如果是正則路由，只取paraString部分
+			paraString := strings.Split(child.path[1:], "(")[0]
+			pathParams[paraString] = seg
 		}
 		root = child
 	}
@@ -150,15 +160,18 @@ func (r *Router) findRoute(method string, path string) (*matchInfo, bool) {
 	return matchInfo, true
 }
 
-// childOrCreate 查找子节点，
-// 首先会判断 path 是不是通配符路径
-// 其次判断 path 是不是参数路径，即以 : 开头的路径
-// 最后会从 children 里面查找，
-// 如果没有找到，那么会创建一个新的节点，并且保存在 node 里面
+// childOrCreate to check sub-node if it does not exist
+// 先判斷 path 是否為通配符路由
+// 其次判斷是否為參數路由，為":"開頭
+// 最後從 children 查找靜態路由
+// 如果以上都沒，將會創建一個新節點 node
 func (n *node) childOrCreate(seg string) *node {
 	if seg == "*" {
 		if n.paramChild != nil {
-			panic(fmt.Sprintf("web: invalid route, there is a parameter path"))
+			panic(fmt.Sprintf("web: invalid route, a parameter path existed"))
+		}
+		if n.regChild != nil {
+			panic(fmt.Sprintf("web: invalid route, a regexpr path existed"))
 		}
 		if n.starChild == nil {
 			n.starChild = &node{path: seg, nodeType: nodeTypeAny}
@@ -167,15 +180,13 @@ func (n *node) childOrCreate(seg string) *node {
 	}
 
 	if seg[0] == ':' {
-		if n.starChild != nil {
-			panic(fmt.Sprintf("web: invalid route, there is a star path"))
+		paraString, regExpPattern, isRegExp := n.parseParam(seg)
+		// 因原本一長串可讀性較差，重新封裝
+		if isRegExp {
+			return n.childOrCreateWithRegExp(seg, paraString, regExpPattern)
+		} else {
+			return n.childOrCreateWithParam(seg, paraString)
 		}
-		if n.paramChild != nil {
-			if n.paramChild.path != seg {
-				panic(fmt.Sprintf("web: parameter route conflict, had %s, new %s", n.paramChild.path, seg))
-			}
-		}
-		n.paramChild = &node{path: seg, nodeType: nodeTypeParam}
 		return n.paramChild
 	}
 
@@ -195,11 +206,17 @@ func (n *node) childOrCreate(seg string) *node {
 }
 
 // 優先匹配靜態路由，其次參數路由、通配符匹配。
+// first return: child node
+// second return: true if it is param or regexpr route
+// third return: true if node existed
 func (n *node) childOf(path string) (*node, bool, bool) {
 	if n.children == nil {
 		// 此處優先級：參數路由優先於通配符
 		if n.paramChild != nil {
 			return n.paramChild, true, true
+		}
+		if n.regChild != nil {
+			return n.regChild, true, true
 		}
 		return n.starChild, false, n.starChild != nil
 	}
@@ -208,7 +225,73 @@ func (n *node) childOf(path string) (*node, bool, bool) {
 		if n.paramChild != nil {
 			return n.paramChild, true, true
 		}
+		if n.regChild != nil {
+			return n.regChild, true, true
+		}
 		return n.starChild, false, n.starChild != nil
 	}
 	return res, false, ok
+}
+
+// parseParam 解析參數路由，判斷是否為正則路由
+// first return: parameter path
+// second return: regular expression
+// third return: true as regExpr
+func (n *node) parseParam(path string) (string, string, bool) {
+	// path: :<param>(<regExp>)
+	// remove ":"
+	path = path[1:]
+	segs := strings.Split(path, "(")
+	//segs := strings.SplitN(path, "(",2)
+	// :reg(xx) (o) => 2 segs, maybe
+	// :reg(xx (x) => 2 segs, maybe
+	// :reg(x(x (x) => 3 segs
+	// :regxx (x)
+	if len(segs) == 2 {
+		// last element is ")"
+		expr := segs[1]
+		if expr[len(expr)-1] == ')' {
+			return segs[0], expr[:len(expr)-1], true
+		}
+	}
+	return path, "", false
+}
+
+func (n *node) childOrCreateWithParam(path string, paraString string) *node {
+	if n.starChild != nil {
+		panic(fmt.Sprintf("web: invalid route, a star path existed"))
+	}
+	if n.paramChild != nil {
+		if n.paramChild.path != path {
+			panic(fmt.Sprintf("web: parameter route conflict, had %s, new %s", n.paramChild.path, path))
+		}
+	}
+	if n.regChild != nil {
+		panic(fmt.Sprintf("web: regexpr route conflict, had %s, new %s", n.regChild.path, path))
+	}
+
+	n.paramChild = &node{path: path, paramString: paraString, nodeType: nodeTypeParam}
+	return n.paramChild
+}
+
+func (n *node) childOrCreateWithRegExp(path string, paraString string, regExpPattern string) *node {
+	if n.starChild != nil {
+		panic(fmt.Sprintf("web: invalid route, a star path existed"))
+	}
+	if n.paramChild != nil {
+		if n.paramChild.path != path {
+			panic(fmt.Sprintf("web: parameter route conflict, had %s, new %s", n.paramChild.path, path))
+		}
+	}
+	if n.regChild != nil {
+		if n.regChild.reqExpPattern.String() != regExpPattern || n.paramString != paraString {
+			panic(fmt.Sprintf("web: regexpr route conflict, had %s, new %s", n.regChild.path, path))
+		}
+	}
+	regExp, err := regexp.Compile(regExpPattern)
+	if err != nil {
+		panic(fmt.Errorf("web: regexpr error: %w", err))
+	}
+	n.regChild = &node{path: path, paramString: paraString, reqExpPattern: regExp, nodeType: nodeTypeRegexp}
+	return n.regChild
 }

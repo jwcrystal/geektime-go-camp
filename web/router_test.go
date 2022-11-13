@@ -66,14 +66,23 @@ func TestRouter_AddRoute(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/param/:id",
 		},
-		//{
-		//	method: http.MethodGet,
-		//	path:   "/param/:id/detail",
-		//},
-		//{
-		//	method: http.MethodGet,
-		//	path:   "/param/:id/*",
-		//},
+		{
+			method: http.MethodGet,
+			path:   "/param/:id/detail",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/param/:id/*",
+		},
+		// Regexp 路由 （正則路由）
+		{
+			method: http.MethodPatch,
+			path:   "/reg/:id(.*)",
+		},
+		{
+			method: http.MethodPatch,
+			path:   "/:user(^.+$)/hello",
+		},
 	}
 
 	mockHandler := func(ctx *Context) {}
@@ -119,16 +128,18 @@ func TestRouter_AddRoute(t *testing.T) {
 					"param": {
 						path: "param",
 						paramChild: &node{
-							path:     ":id",
-							handler:  mockHandler,
-							nodeType: nodeTypeParam,
-							//children: map[string]*node{
-							//	"detail": {
-							//		path:    "detail",
-							//		handler: mockHandler,
-							//	},
-							//},
-							//starChild: &node{path: "*", handler: mockHandler},
+							path:        ":id",
+							paramString: "id",
+							handler:     mockHandler,
+							nodeType:    nodeTypeParam,
+							children: map[string]*node{
+								"detail": {
+									path:     "detail",
+									handler:  mockHandler,
+									nodeType: nodeTypeStatic,
+								},
+							},
+							starChild: &node{path: "*", handler: mockHandler, nodeType: nodeTypeAny},
 						},
 					},
 				},
@@ -175,6 +186,32 @@ func TestRouter_AddRoute(t *testing.T) {
 					},
 				},
 			},
+			http.MethodPatch: {
+				path: "/",
+				children: map[string]*node{
+					"reg": {
+						path: "reg",
+						regChild: &node{
+							path:        ":id(.*)",
+							paramString: "id",
+							handler:     mockHandler,
+							//children: map[string]*node{},
+							nodeType: nodeTypeRegexp,
+						},
+					},
+				},
+				regChild: &node{
+					path:        ":user(^.+$)",
+					paramString: ":user",
+					nodeType:    nodeTypeRegexp,
+					children: map[string]*node{
+						"hello": {
+							path:    "hello",
+							handler: mockHandler,
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -201,6 +238,12 @@ func TestRouter_AddRoute(t *testing.T) {
 	assert.Panicsf(t, func() {
 		r.addRoute(http.MethodGet, "//login", mockHandler)
 	}, "web: no continuous '//' ")
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "//a/b", mockHandler)
+	}, "web: 非法路由。不允许使用 //a/b, /a//b 之类的路由, [//a/b]")
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/a//b", mockHandler)
+	}, "web: 非法路由。不允许使用 //a/b, /a//b 之类的路由, [/a//b]")
 
 	r = NewRouter()
 	r.addRoute(http.MethodGet, "/", mockHandler)
@@ -210,32 +253,57 @@ func TestRouter_AddRoute(t *testing.T) {
 	}, "web: the route conflicts, '/' register twice")
 	// node register twice
 	r = NewRouter()
-	r.addRoute(http.MethodGet, "/a/b/c", mockHandler)
 	assert.PanicsWithValue(t, fmt.Sprintf("web: the route conflicts, /a/b/c register twice"), func() {
 		r.addRoute(http.MethodGet, "/a/b/c", mockHandler)
-
+		r.addRoute(http.MethodGet, "/a/b/c", mockHandler)
 	})
 	// parameter and star path verification
 	r = NewRouter()
-	r.addRoute(http.MethodGet, "/a/:id", mockHandler)
-	//assert.Panicsf(t, func() {
-	//	r.addRoute(http.MethodGet, "/a/*", mockHandler)
-	//}, "web: invalid route, there is a parameter path")
-	assert.PanicsWithValue(t, fmt.Sprintf("web: invalid route, there is a parameter path"), func() {
+	assert.PanicsWithValue(t, fmt.Sprintf("web: invalid route, a parameter path existed"), func() {
+		r.addRoute(http.MethodGet, "/a/:id", mockHandler)
 		r.addRoute(http.MethodGet, "/a/*", mockHandler)
-
 	})
 	r = NewRouter()
 	r.addRoute(http.MethodGet, "/a/*", mockHandler)
 	assert.Panicsf(t, func() {
 		r.addRoute(http.MethodGet, "/a/:id", mockHandler)
-	}, "web: invalid route, there is a star path")
-
+	}, "web: invalid route, a star path existed")
 	r = NewRouter()
+	// 参数冲突
 	r.addRoute(http.MethodGet, "/a/:user", mockHandler)
 	assert.Panicsf(t, func() {
 		r.addRoute(http.MethodGet, "/a/:id", mockHandler)
-	}, "web: invalid route, there is a parameter path")
+	}, "web: invalid route, parameter route conflict")
+	r = NewRouter()
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/*", mockHandler)
+		r.addRoute(http.MethodGet, "/:id", mockHandler)
+	}, "web: 非法路由，已有通配符路由。不允许同时注册通配符路由和参数路由 [:id]")
+	r = NewRouter()
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/:id", mockHandler)
+		r.addRoute(http.MethodGet, "/*", mockHandler)
+	}, "web: 非法路由，已有路径参数路由。不允许同时注册通配符路由和参数路由 [*]")
+	r = NewRouter()
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/a/b/:id", mockHandler)
+		r.addRoute(http.MethodGet, "/a/b/:id(.*)", mockHandler)
+	}, "web: 非法路由，已有路径参数路由。不允许同时注册正则路由和参数路由 [:id(.*)]")
+	r = NewRouter()
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/a/b/:id(.*)", mockHandler)
+		r.addRoute(http.MethodGet, "/a/b/:id", mockHandler)
+	}, "web: 非法路由，已有正则路由。不允许同时注册正则路由和参数路由 [:id]")
+	r = NewRouter()
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/a/b/:id(.*)", mockHandler)
+		r.addRoute(http.MethodGet, "/a/b/*", mockHandler)
+	}, "web: 非法路由，已有正则路由。不允许同时注册通配符路由和正则路由 [*]")
+	r = NewRouter()
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/a/b/*", mockHandler)
+		r.addRoute(http.MethodGet, "/a/b/:id(.*)", mockHandler)
+	}, "web: 非法路由，已有通配符路由。不允许同时注册通配符路由和正则路由 [:id(.*)]")
 }
 
 func (r *Router) equal(y *Router) (string, bool) {
@@ -358,10 +426,15 @@ func TestRouter_findRoute(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/user/*/home",
 		},
-		//{
-		//	method: http.MethodGet,
-		//	path:   "/*",
-		//},
+		// 正則路由測試用例
+		{
+			method: http.MethodPatch,
+			path:   "/reg/:id(.*)",
+		},
+		{
+			method: http.MethodPatch,
+			path:   "/:id(^[0-9]+$)/hello",
+		},
 	}
 
 	mockHandler := func(ctx *Context) {}
@@ -488,21 +561,23 @@ func TestRouter_findRoute(t *testing.T) {
 			wantFound: true,
 			matchInfo: &matchInfo{ //支持通配末尾多段
 				node: &node{
-					path:    "*",
-					handler: mockHandler,
+					path:     "*",
+					handler:  mockHandler,
+					nodeType: nodeTypeAny,
 				},
 			},
 		},
 		{
 			// 參數路由
-			name:      "param :id",
+			name:      ":id",
 			method:    http.MethodPost,
 			path:      "/param/123",
 			wantFound: true,
 			matchInfo: &matchInfo{
 				node: &node{
-					path:    ":id",
-					handler: mockHandler,
+					path:     ":id",
+					handler:  mockHandler,
+					nodeType: nodeTypeParam,
 				},
 				pathParams: map[string]string{
 					"id": "123",
@@ -523,36 +598,63 @@ func TestRouter_findRoute(t *testing.T) {
 		//		pathParams: map[string]string{"id": "123"},
 		//	},
 		//},
-		//{
-		//	// 命中 /param/:id/detail
-		//	name:      ":id*",
-		//	method:    http.MethodGet,
-		//	path:      "/param/123/detail",
-		//	wantFound: true,
-		//	matchInfo: &matchInfo{
-		//		node: &node{
-		//			path:    "detail",
-		//			handler: mockHandler,
-		//		},
-		//		pathParams: map[string]string{"id": "123"},
-		//	},
-		//},
-		//{
-		//	// 正則路由
-		//	name:      "Regexpr",
-		//	method:    http.MethodPost,
-		//	path:      "/param/123",
-		//	wantFound: true,
-		//	matchInfo: &matchInfo{
-		//		node: &node{
-		//			path:    ":id",
-		//			handler: mockHandler,
-		//		},
-		//		pathParams: map[string]string{
-		//			"id": "123",
-		//		},
-		//	},
-		//},
+		{
+			// 命中 /param/:id/detail
+			name:      ":id*",
+			method:    http.MethodGet,
+			path:      "/param/123/detail",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "detail",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{"id": "123"},
+			},
+		},
+		{
+			// 正則路由
+			name:      "RegExpr id(.*)",
+			method:    http.MethodPatch,
+			path:      "/reg/abc",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    ":id(.*)",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{
+					"id": "abc",
+				},
+			},
+		},
+		{
+			name:      "RegExpr id(^[0-9]+$)",
+			method:    http.MethodPatch,
+			path:      "/123",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path: ":id(^[0-9]+$)",
+					children: map[string]*node{
+						"hello": {
+							path:    "hello",
+							handler: mockHandler,
+						},
+					},
+					nodeType: nodeTypeRegexp,
+				},
+				pathParams: map[string]string{
+					"id": "123",
+				},
+			},
+		},
+		{
+			// 未命中 /id(^[0-9]+$)/home
+			name:   "RegExprnot :id(^[0-9]+$)",
+			method: http.MethodDelete,
+			path:   "/abc/home",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -566,10 +668,6 @@ func TestRouter_findRoute(t *testing.T) {
 			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
 			//msg, ok := tc.matchInfo.node.equal(route.node)
 			//assert.True(t, ok, msg)
-			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			//wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
-			//nVal := reflect.ValueOf(route.node.handler)
-			//assert.Equal(t, wantVal, nVal)
 			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
 			n := tc.matchInfo.node
 			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
