@@ -74,5 +74,6 @@ func (h *HttpServer) serve(ctx *Context) {
 		ctx.Res.Write([]byte("Not found"))
 		return
 	}
-	route.handler(ctx)
+	ctx.PathParams = route.pathParams
+	route.node.handler(ctx)
 }

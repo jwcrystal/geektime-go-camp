@@ -25,11 +25,14 @@ type Router struct {
 	trees map[string]*node
 }
 
+type matchInfo struct {
+	node       *node
+	pathParams map[string]string
+}
+
 func NewRouter() *Router {
 	return &Router{trees: map[string]*node{}}
 }
-
-// Add the restriction
 
 // addRoute path must start with "/", not end with "/", not continues with "//"
 func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
@@ -85,27 +88,41 @@ func (r *Router) addRoute(method string, path string, handlerFunc HandleFunc) {
 	root.handler = handlerFunc
 }
 
-func (r *Router) findRoute(method string, path string) (*node, bool) {
+func (r *Router) findRoute(method string, path string) (*matchInfo, bool) {
 	root, ok := r.trees[method]
 	if !ok {
 		return nil, false
 	}
 
 	if path == "/" {
-		return root, true
+		return &matchInfo{
+			node: root,
+		}, true
 	}
 
 	// Trim head and tail with "/"
 	segs := strings.Split(strings.Trim(path, "/"), "/")
+	var pathParams map[string]string
 	for _, seg := range segs {
-		child, found := root.childOf(seg)
+		child, paramChild, found := root.childOf(seg)
 		if !found {
 			return nil, false
+		}
+		// 命中 參數路由
+		if paramChild {
+			if pathParams == nil {
+				pathParams = make(map[string]string)
+			}
+			// 參數路由格式為 :id
+			pathParams[child.path[1:]] = seg
 		}
 		root = child
 	}
 	// return "true" => 不會處理node有無handler的情況
-	return root, root.handler != nil
+	return &matchInfo{
+		node:       root,
+		pathParams: pathParams,
+	}, root.handler != nil
 }
 
 func (n *node) childOrCreate(seg string) *node {
@@ -120,17 +137,14 @@ func (n *node) childOrCreate(seg string) *node {
 		}
 		return n.starChild
 	}
-	// 要規定通配和參數路由，誰的優先級高
+
 	if seg[0] == ':' {
 		if n.starChild != nil {
 			panic(fmt.Sprintf("web: invalid route, there is a star path"))
 		}
-		if n.paramChild != nil {
-			if n.paramChild.path != seg {
-				panic(fmt.Sprintf("web: route conflict"))
-			}
+		if n.paramChild == nil {
+			n.paramChild = &node{path: seg}
 		}
-		n.paramChild = &node{path: seg}
 		return n.paramChild
 	}
 
@@ -149,13 +163,20 @@ func (n *node) childOrCreate(seg string) *node {
 }
 
 // 優先匹配靜態路由，其次通配符匹配
-func (n *node) childOf(path string) (*node, bool) {
+func (n *node) childOf(path string) (*node, bool, bool) {
 	if n.children == nil {
-		return n.starChild, n.starChild != nil
+		// 此處優先級：參數路由優先於通配符
+		if n.paramChild != nil {
+			return n.paramChild, true, true
+		}
+		return n.starChild, false, n.starChild != nil
 	}
 	res, ok := n.children[path]
 	if !ok {
-		return n.starChild, n.starChild != nil
+		if n.paramChild != nil {
+			return n.paramChild, true, true
+		}
+		return n.starChild, false, n.starChild != nil
 	}
-	return res, ok
+	return res, false, ok
 }

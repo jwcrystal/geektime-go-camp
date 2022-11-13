@@ -16,7 +16,9 @@ func TestHttpServer(t *testing.T) {
 	s.Get("/abc/*", func(ctx *Context) {
 		ctx.Res.Write([]byte(fmt.Sprintf("hello, %s", ctx.Req.URL.Path)))
 	})
-
+	s.Get("/user/:username", func(ctx *Context) {
+		ctx.Res.Write([]byte(fmt.Sprintf("hello, %s", ctx.PathParams["username"])))
+	})
 	err := s.Start(":8081")
 	if err != nil {
 		return
