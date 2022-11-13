@@ -650,7 +650,7 @@ func TestRouter_findRoute(t *testing.T) {
 		},
 		{
 			// 未命中 /id(^[0-9]+$)/home
-			name:   "RegExprnot :id(^[0-9]+$)",
+			name:   "RegExpr not :id(^[0-9]+$)",
 			method: http.MethodDelete,
 			path:   "/abc/home",
 		},
@@ -658,6 +658,357 @@ func TestRouter_findRoute(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			route, found := r.findRoute(tc.method, tc.path)
+			assert.Equal(t, tc.wantFound, found)
+			if !found {
+				return
+			}
+			// handler 無法比較
+			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			//msg, ok := tc.matchInfo.node.equal(route.node)
+			//assert.True(t, ok, msg)
+			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			n := tc.matchInfo.node
+			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
+			nVal := reflect.ValueOf(n.handler)
+			assert.Equal(t, wantVal, nVal)
+		})
+	}
+}
+
+func Benchmark_findRoute_Static(t *testing.B) {
+	testRoutes := []struct {
+		method string
+		path   string
+	}{
+		// static route
+		{
+			method: http.MethodDelete,
+			path:   "/",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/home",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/order/detail",
+		},
+	}
+	mockHandler := func(ctx *Context) {}
+	r := NewRouter()
+	for _, route := range testRoutes {
+		r.addRoute(route.method, route.path, mockHandler)
+	}
+	testCases := []struct {
+		name      string
+		method    string
+		path      string
+		wantFound bool
+		matchInfo *matchInfo
+	}{
+		{
+			// method does not exist
+			name:   "method not found",
+			method: http.MethodHead,
+		},
+		{
+			name:   "path not found",
+			method: http.MethodGet,
+			path:   "/abc",
+		},
+		{
+			name:      "root",
+			method:    http.MethodDelete,
+			path:      "/",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "/",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			// 完全命中
+			name:      "user home",
+			method:    http.MethodGet,
+			path:      "/user/home",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "home",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			// 完全命中
+			name:      "order detail",
+			method:    http.MethodGet,
+			path:      "/order/detail",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "detail",
+					handler: mockHandler,
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.B) {
+			route, found := r.findRoute(tc.method, tc.path)
+			assert.Equal(t, tc.wantFound, found)
+			if !found {
+				return
+			}
+			// handler 無法比較
+			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			//msg, ok := tc.matchInfo.node.equal(route.node)
+			//assert.True(t, ok, msg)
+			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			n := tc.matchInfo.node
+			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
+			nVal := reflect.ValueOf(n.handler)
+			assert.Equal(t, wantVal, nVal)
+		})
+	}
+}
+
+func Benchmark_findRoute_Any(t *testing.B) {
+	testRoutes := []struct {
+		method string
+		path   string
+	}{
+		// 通配符测试用例
+		{
+			method: http.MethodGet,
+			path:   "/user/*/home",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/order/*",
+		},
+	}
+	mockHandler := func(ctx *Context) {}
+	r := NewRouter()
+	for _, route := range testRoutes {
+		r.addRoute(route.method, route.path, mockHandler)
+	}
+	testCases := []struct {
+		name      string
+		method    string
+		path      string
+		wantFound bool
+		matchInfo *matchInfo
+	}{
+		// 通配符匹配
+		{
+			// 命中/order/*
+			name:      "star match",
+			method:    http.MethodPost,
+			path:      "/order/delete",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			// 命中通配符在中间的
+			// /user/*/home
+			name:      "star in middle",
+			method:    http.MethodGet,
+			path:      "/user/Tom/home",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "home",
+					handler: mockHandler,
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.B) {
+			route, found := r.findRoute(tc.method, tc.path)
+			assert.Equal(t, tc.wantFound, found)
+			if !found {
+				return
+			}
+			// handler 無法比較
+			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			//msg, ok := tc.matchInfo.node.equal(route.node)
+			//assert.True(t, ok, msg)
+			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			n := tc.matchInfo.node
+			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
+			nVal := reflect.ValueOf(n.handler)
+			assert.Equal(t, wantVal, nVal)
+		})
+	}
+}
+
+func Benchmark_findRoute_Param(t *testing.B) {
+	testRoutes := []struct {
+		method string
+		path   string
+	}{
+		// 参数路由
+		{
+			method: http.MethodGet,
+			path:   "/param/:id",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/param/:id/detail",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/param/:id/*",
+		},
+	}
+	mockHandler := func(ctx *Context) {}
+	r := NewRouter()
+	for _, route := range testRoutes {
+		r.addRoute(route.method, route.path, mockHandler)
+	}
+	testCases := []struct {
+		name      string
+		method    string
+		path      string
+		wantFound bool
+		matchInfo *matchInfo
+	}{
+		// 参数匹配
+		{
+			// 命中 /param/:id
+			name:      ":id",
+			method:    http.MethodGet,
+			path:      "/param/123",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    ":id",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{"id": "123"},
+			},
+		},
+		{
+			// 命中 /param/:id/*
+			name:      ":id*",
+			method:    http.MethodGet,
+			path:      "/param/123/abc",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{"id": "123"},
+			},
+		},
+		{
+			// 命中 /param/:id/detail
+			name:      ":id*",
+			method:    http.MethodGet,
+			path:      "/param/123/detail",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "detail",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{"id": "123"},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.B) {
+			route, found := r.findRoute(tc.method, tc.path)
+			assert.Equal(t, tc.wantFound, found)
+			if !found {
+				return
+			}
+			// handler 無法比較
+			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			//msg, ok := tc.matchInfo.node.equal(route.node)
+			//assert.True(t, ok, msg)
+			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			n := tc.matchInfo.node
+			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
+			nVal := reflect.ValueOf(n.handler)
+			assert.Equal(t, wantVal, nVal)
+		})
+	}
+}
+
+func Benchmark_findRoute_RegExpr(t *testing.B) {
+	testRoutes := []struct {
+		method string
+		path   string
+	}{
+		// 正则
+		{
+			method: http.MethodDelete,
+			path:   "/reg/:id(.*)",
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/:id([0-9]+)/home",
+		},
+	}
+	mockHandler := func(ctx *Context) {}
+	r := NewRouter()
+	for _, route := range testRoutes {
+		r.addRoute(route.method, route.path, mockHandler)
+	}
+	testCases := []struct {
+		name      string
+		method    string
+		path      string
+		wantFound bool
+		matchInfo *matchInfo
+	}{
+		{
+			// 命中 /reg/:id(.*)
+			name:      ":id(.*)",
+			method:    http.MethodDelete,
+			path:      "/reg/123",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    ":id(.*)",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{"id": "123"},
+			},
+		},
+		{
+			// 命中 /:id([0-9]+)/home
+			name:      ":id([0-9]+)",
+			method:    http.MethodDelete,
+			path:      "/123/home",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    ":id(.*)",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{"id": "123"},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.B) {
 			route, found := r.findRoute(tc.method, tc.path)
 			assert.Equal(t, tc.wantFound, found)
 			if !found {
