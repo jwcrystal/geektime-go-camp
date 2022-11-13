@@ -32,11 +32,6 @@ func TestRouter_AddRoute(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/order/detail",
 		},
-		// 參數路由
-		{
-			method: http.MethodGet,
-			path:   "/order/detail/:id",
-		},
 		// 通配符測試用例
 		{
 			method: http.MethodGet,
@@ -66,6 +61,19 @@ func TestRouter_AddRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/login",
 		},
+		// 參數路由
+		{
+			method: http.MethodGet,
+			path:   "/param/:id",
+		},
+		//{
+		//	method: http.MethodGet,
+		//	path:   "/param/:id/detail",
+		//},
+		//{
+		//	method: http.MethodGet,
+		//	path:   "/param/:id/*",
+		//},
 	}
 
 	mockHandler := func(ctx *Context) {}
@@ -87,8 +95,9 @@ func TestRouter_AddRoute(t *testing.T) {
 						handler: mockHandler,
 						children: map[string]*node{
 							"home": {
-								path:    "home",
-								handler: mockHandler,
+								path:     "home",
+								handler:  mockHandler,
+								nodeType: nodeTypeStatic,
 							},
 						},
 					},
@@ -96,36 +105,53 @@ func TestRouter_AddRoute(t *testing.T) {
 						path: "order",
 						children: map[string]*node{
 							"detail": {
-								path:    "detail",
-								handler: mockHandler,
-								paramChild: &node{
-									path:    ":id",
-									handler: mockHandler,
-								},
+								path:     "detail",
+								handler:  mockHandler,
+								nodeType: nodeTypeStatic,
 							},
 						},
 						starChild: &node{
-							path:    "*",
-							handler: mockHandler,
+							path:     "*",
+							handler:  mockHandler,
+							nodeType: nodeTypeAny,
+						},
+					},
+					"param": {
+						path: "param",
+						paramChild: &node{
+							path:     ":id",
+							handler:  mockHandler,
+							nodeType: nodeTypeParam,
+							//children: map[string]*node{
+							//	"detail": {
+							//		path:    "detail",
+							//		handler: mockHandler,
+							//	},
+							//},
+							//starChild: &node{path: "*", handler: mockHandler},
 						},
 					},
 				},
 				starChild: &node{
-					path:    "*",
-					handler: mockHandler,
+					path:     "*",
+					handler:  mockHandler,
+					nodeType: nodeTypeAny,
 					children: map[string]*node{
 						"aaa": {
 							path: "aaa",
 							starChild: &node{
-								path:    "*",
-								handler: mockHandler,
+								path:     "*",
+								handler:  mockHandler,
+								nodeType: nodeTypeAny,
 							},
-							handler: mockHandler,
+							handler:  mockHandler,
+							nodeType: nodeTypeStatic,
 						},
 					},
 					starChild: &node{
-						path:    "*",
-						handler: mockHandler,
+						path:     "*",
+						handler:  mockHandler,
+						nodeType: nodeTypeAny,
 					},
 				},
 			},
@@ -136,14 +162,16 @@ func TestRouter_AddRoute(t *testing.T) {
 						path: "order",
 						children: map[string]*node{
 							"create": {
-								path:    "create",
-								handler: mockHandler,
+								path:     "create",
+								handler:  mockHandler,
+								nodeType: nodeTypeStatic,
 							},
 						},
 					},
 					"login": {
-						path:    "login",
-						handler: mockHandler,
+						path:     "login",
+						handler:  mockHandler,
+						nodeType: nodeTypeStatic,
 					},
 				},
 			},
@@ -183,7 +211,6 @@ func TestRouter_AddRoute(t *testing.T) {
 	// node register twice
 	r = NewRouter()
 	r.addRoute(http.MethodGet, "/a/b/c", mockHandler)
-	// root node register twice
 	assert.PanicsWithValue(t, fmt.Sprintf("web: the route conflicts, /a/b/c register twice"), func() {
 		r.addRoute(http.MethodGet, "/a/b/c", mockHandler)
 
@@ -203,6 +230,12 @@ func TestRouter_AddRoute(t *testing.T) {
 	assert.Panicsf(t, func() {
 		r.addRoute(http.MethodGet, "/a/:id", mockHandler)
 	}, "web: invalid route, there is a star path")
+
+	r = NewRouter()
+	r.addRoute(http.MethodGet, "/a/:user", mockHandler)
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodGet, "/a/:id", mockHandler)
+	}, "web: invalid route, there is a parameter path")
 }
 
 func (r *Router) equal(y *Router) (string, bool) {
@@ -224,10 +257,18 @@ func (n *node) equal(y *node) (string, bool) {
 		return fmt.Sprintf("Node path %s not found", y.path), false
 	}
 	if n.path != y.path {
-		return fmt.Sprintf("the node path does not matched"), false
+		return fmt.Sprintf("%s: the node path does not matched x: %s, y :%s", n.path, n.path, y.path), false
 	}
 	if len(n.children) != len(y.children) {
-		return fmt.Sprintf("the number of children was not matched"), false
+		return fmt.Sprintf("%s: the number of children was not matched", n.path), false
+	}
+
+	if n.nodeType != y.nodeType {
+		return fmt.Sprintf("%s: not same node type x: %d, y: %d", n.path, n.nodeType, y.nodeType), false
+	}
+
+	if len(n.children) == 0 {
+		return "", true
 	}
 
 	if n.starChild != nil {
@@ -249,17 +290,17 @@ func (n *node) equal(y *node) (string, bool) {
 	yhandler := reflect.ValueOf(y.handler)
 
 	if nhandler != yhandler {
-		return fmt.Sprintf("handler was not equal"), false
+		return fmt.Sprintf("%s: handler was not equal x: %s, y: %s", n.path, nhandler.Type().String(), yhandler.Type().String()), false
 	}
 
 	for path, c := range n.children {
 		dst, ok := y.children[path]
 		if !ok {
-			return fmt.Sprintf("sub-node %s not existed", path), false
+			return fmt.Sprintf("%s: sub-node %s not existed", n.path, path), false
 		}
 		msg, ok := c.equal(dst)
 		if !ok {
-			return msg, false
+			return msg, ok
 		}
 	}
 	return "", true
@@ -298,8 +339,16 @@ func TestRouter_findRoute(t *testing.T) {
 		// 參數路由
 		{
 			method: http.MethodPost,
-			path:   "/login/:user",
+			path:   "/param/:id",
 		},
+		//{
+		//	method: http.MethodPost,
+		//	path:   "/param/:id/detail",
+		//},
+		//{
+		//	method: http.MethodPost,
+		//	path:   "/param/:id/*",
+		//},
 		//// 通配符測試用例
 		{
 			method: http.MethodPost,
@@ -432,27 +481,78 @@ func TestRouter_findRoute(t *testing.T) {
 			},
 		},
 		{
-			// 比 /order/* 多了一段
-			name:   "overflow",
-			method: http.MethodPost,
-			path:   "/order/delete/123",
-		},
-		{
-			// 參數路由
-			name:      "login :user",
+			// 比 /order/* 多了一段，支持末尾通配一段
+			name:      "overflow",
 			method:    http.MethodPost,
-			path:      "/login/Jared",
+			path:      "/order/delete/123",
 			wantFound: true,
-			matchInfo: &matchInfo{
+			matchInfo: &matchInfo{ //支持通配末尾多段
 				node: &node{
-					path:    ":user",
+					path:    "*",
 					handler: mockHandler,
-				},
-				pathParams: map[string]string{
-					"user": "Jared",
 				},
 			},
 		},
+		{
+			// 參數路由
+			name:      "param :id",
+			method:    http.MethodPost,
+			path:      "/param/123",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    ":id",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{
+					"id": "123",
+				},
+			},
+		},
+		//{
+		//	// 命中 /param/:id/*
+		//	name:      ":id*",
+		//	method:    http.MethodGet,
+		//	path:      "/param/123/abc",
+		//	wantFound: true,
+		//	matchInfo: &matchInfo{
+		//		node: &node{
+		//			path:    "*",
+		//			handler: mockHandler,
+		//		},
+		//		pathParams: map[string]string{"id": "123"},
+		//	},
+		//},
+		//{
+		//	// 命中 /param/:id/detail
+		//	name:      ":id*",
+		//	method:    http.MethodGet,
+		//	path:      "/param/123/detail",
+		//	wantFound: true,
+		//	matchInfo: &matchInfo{
+		//		node: &node{
+		//			path:    "detail",
+		//			handler: mockHandler,
+		//		},
+		//		pathParams: map[string]string{"id": "123"},
+		//	},
+		//},
+		//{
+		//	// 正則路由
+		//	name:      "Regexpr",
+		//	method:    http.MethodPost,
+		//	path:      "/param/123",
+		//	wantFound: true,
+		//	matchInfo: &matchInfo{
+		//		node: &node{
+		//			path:    ":id",
+		//			handler: mockHandler,
+		//		},
+		//		pathParams: map[string]string{
+		//			"id": "123",
+		//		},
+		//	},
+		//},
 	}
 
 	for _, tc := range testCases {
@@ -463,14 +563,18 @@ func TestRouter_findRoute(t *testing.T) {
 				return
 			}
 			// handler 無法比較
-			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			msg, ok := tc.matchInfo.node.equal(route.node)
-			assert.True(t, ok, msg)
-			//assert.Equal(t, tc.matchInfo.node.path, route.node.path)
+			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			//msg, ok := tc.matchInfo.node.equal(route.node)
+			//assert.True(t, ok, msg)
 			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
 			//wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
 			//nVal := reflect.ValueOf(route.node.handler)
 			//assert.Equal(t, wantVal, nVal)
+			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+			n := tc.matchInfo.node
+			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
+			nVal := reflect.ValueOf(n.handler)
+			assert.Equal(t, wantVal, nVal)
 		})
 	}
 }
