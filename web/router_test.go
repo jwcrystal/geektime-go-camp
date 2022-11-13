@@ -409,14 +409,14 @@ func TestRouter_findRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/param/:id",
 		},
-		//{
-		//	method: http.MethodPost,
-		//	path:   "/param/:id/detail",
-		//},
-		//{
-		//	method: http.MethodPost,
-		//	path:   "/param/:id/*",
-		//},
+		{
+			method: http.MethodPost,
+			path:   "/param/:id/detail",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/param/:id/*",
+		},
 		//// 通配符測試用例
 		{
 			method: http.MethodPost,
@@ -575,33 +575,32 @@ func TestRouter_findRoute(t *testing.T) {
 			wantFound: true,
 			matchInfo: &matchInfo{
 				node: &node{
-					path:     ":id",
-					handler:  mockHandler,
-					nodeType: nodeTypeParam,
+					path:    ":id",
+					handler: mockHandler,
 				},
 				pathParams: map[string]string{
 					"id": "123",
 				},
 			},
 		},
-		//{
-		//	// 命中 /param/:id/*
-		//	name:      ":id*",
-		//	method:    http.MethodGet,
-		//	path:      "/param/123/abc",
-		//	wantFound: true,
-		//	matchInfo: &matchInfo{
-		//		node: &node{
-		//			path:    "*",
-		//			handler: mockHandler,
-		//		},
-		//		pathParams: map[string]string{"id": "123"},
-		//	},
-		//},
+		{
+			// 命中 /param/:id/*
+			name:      ":id*",
+			method:    http.MethodPost,
+			path:      "/param/123/abc",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{"id": "123"},
+			},
+		},
 		{
 			// 命中 /param/:id/detail
 			name:      ":id*",
-			method:    http.MethodGet,
+			method:    http.MethodPost,
 			path:      "/param/123/detail",
 			wantFound: true,
 			matchInfo: &matchInfo{
