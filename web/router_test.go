@@ -352,7 +352,12 @@ func (n *node) equal(y *node) (string, bool) {
 			return msg, ok
 		}
 	}
-
+	if n.regChild != nil {
+		msg, ok := n.regChild.equal(y.regChild)
+		if !ok {
+			return msg, ok
+		}
+	}
 	// 比較 handler
 	nhandler := reflect.ValueOf(n.handler)
 	yhandler := reflect.ValueOf(y.handler)
