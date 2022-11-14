@@ -184,10 +184,8 @@ func (n *node) childOrCreate(seg string) *node {
 		// 因原本一長串可讀性較差，重新封裝
 		if isRegExp {
 			return n.childOrCreateWithRegExp(seg, paraString, regExpPattern)
-		} else {
-			return n.childOrCreateWithParam(seg, paraString)
 		}
-		return n.paramChild
+		return n.childOrCreateWithParam(seg, paraString)
 	}
 
 	if n.children == nil {
