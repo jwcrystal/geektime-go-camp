@@ -765,23 +765,27 @@ func Benchmark_findRoute_Static(t *testing.B) {
 			},
 		},
 	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.B) {
-			route, found := r.findRoute(tc.method, tc.path)
-			assert.Equal(t, tc.wantFound, found)
-			if !found {
-				return
-			}
-			// handler 無法比較
-			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			//msg, ok := tc.matchInfo.node.equal(route.node)
-			//assert.True(t, ok, msg)
-			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			n := tc.matchInfo.node
-			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
-			nVal := reflect.ValueOf(n.handler)
-			assert.Equal(t, wantVal, nVal)
-		})
+	t.ResetTimer()
+	t.ReportAllocs()
+	for i := 0; i < t.N; i++ {
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.B) {
+				route, found := r.findRoute(tc.method, tc.path)
+				assert.Equal(t, tc.wantFound, found)
+				if !found {
+					return
+				}
+				// handler 無法比較
+				//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+				//msg, ok := tc.matchInfo.node.equal(route.node)
+				//assert.True(t, ok, msg)
+				assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+				n := tc.matchInfo.node
+				wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
+				nVal := reflect.ValueOf(n.handler)
+				assert.Equal(t, wantVal, nVal)
+			})
+		}
 	}
 }
 
@@ -841,23 +845,27 @@ func Benchmark_findRoute_Any(t *testing.B) {
 			},
 		},
 	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.B) {
-			route, found := r.findRoute(tc.method, tc.path)
-			assert.Equal(t, tc.wantFound, found)
-			if !found {
-				return
-			}
-			// handler 無法比較
-			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			//msg, ok := tc.matchInfo.node.equal(route.node)
-			//assert.True(t, ok, msg)
-			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			n := tc.matchInfo.node
-			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
-			nVal := reflect.ValueOf(n.handler)
-			assert.Equal(t, wantVal, nVal)
-		})
+	t.ResetTimer()
+	t.ReportAllocs()
+	for i := 0; i < t.N; i++ {
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.B) {
+				route, found := r.findRoute(tc.method, tc.path)
+				assert.Equal(t, tc.wantFound, found)
+				if !found {
+					return
+				}
+				// handler 無法比較
+				//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+				//msg, ok := tc.matchInfo.node.equal(route.node)
+				//assert.True(t, ok, msg)
+				assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+				n := tc.matchInfo.node
+				wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
+				nVal := reflect.ValueOf(n.handler)
+				assert.Equal(t, wantVal, nVal)
+			})
+		}
 	}
 }
 
@@ -936,23 +944,27 @@ func Benchmark_findRoute_Param(t *testing.B) {
 			},
 		},
 	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.B) {
-			route, found := r.findRoute(tc.method, tc.path)
-			assert.Equal(t, tc.wantFound, found)
-			if !found {
-				return
-			}
-			// handler 無法比較
-			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			//msg, ok := tc.matchInfo.node.equal(route.node)
-			//assert.True(t, ok, msg)
-			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			n := tc.matchInfo.node
-			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
-			nVal := reflect.ValueOf(n.handler)
-			assert.Equal(t, wantVal, nVal)
-		})
+	t.ResetTimer()
+	t.ReportAllocs()
+	for i := 0; i < t.N; i++ {
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.B) {
+				route, found := r.findRoute(tc.method, tc.path)
+				assert.Equal(t, tc.wantFound, found)
+				if !found {
+					return
+				}
+				// handler 無法比較
+				//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+				//msg, ok := tc.matchInfo.node.equal(route.node)
+				//assert.True(t, ok, msg)
+				assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+				n := tc.matchInfo.node
+				wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
+				nVal := reflect.ValueOf(n.handler)
+				assert.Equal(t, wantVal, nVal)
+			})
+		}
 	}
 }
 
@@ -1012,22 +1024,26 @@ func Benchmark_findRoute_RegExpr(t *testing.B) {
 			},
 		},
 	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.B) {
-			route, found := r.findRoute(tc.method, tc.path)
-			assert.Equal(t, tc.wantFound, found)
-			if !found {
-				return
-			}
-			// handler 無法比較
-			//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			//msg, ok := tc.matchInfo.node.equal(route.node)
-			//assert.True(t, ok, msg)
-			assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
-			n := tc.matchInfo.node
-			wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
-			nVal := reflect.ValueOf(n.handler)
-			assert.Equal(t, wantVal, nVal)
-		})
+	t.ResetTimer()
+	t.ReportAllocs()
+	for i := 0; i < t.N; i++ {
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.B) {
+				route, found := r.findRoute(tc.method, tc.path)
+				assert.Equal(t, tc.wantFound, found)
+				if !found {
+					return
+				}
+				// handler 無法比較
+				//assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+				//msg, ok := tc.matchInfo.node.equal(route.node)
+				//assert.True(t, ok, msg)
+				assert.Equal(t, tc.matchInfo.pathParams, route.pathParams)
+				n := tc.matchInfo.node
+				wantVal := reflect.ValueOf(tc.matchInfo.node.handler)
+				nVal := reflect.ValueOf(n.handler)
+				assert.Equal(t, wantVal, nVal)
+			})
+		}
 	}
 }
