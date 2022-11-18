@@ -57,101 +57,30 @@ for _, seg := range segs {
 ## Benchmark
 
 - 不確定是否標準
-- 靜態路由
-```go
-// 靜態路由
-goos: darwin
-goarch: arm64
-pkg: geektime-go/web
-Benchmark_findRoute_Static
-Benchmark_findRoute_Static/method_not_found
-Benchmark_findRoute_Static/method_not_found-10         	1000000000	         0.0000013 ns/op
-Benchmark_findRoute_Static/path_not_found
-Benchmark_findRoute_Static/path_not_found-10           	1000000000	         0.0000024 ns/op
-Benchmark_findRoute_Static/root
-Benchmark_findRoute_Static/root-10                     	1000000000	         0.0000036 ns/op
-Benchmark_findRoute_Static/user_home
-Benchmark_findRoute_Static/user_home-10                	1000000000	         0.0000066 ns/op
-Benchmark_findRoute_Static/order_detail
-Benchmark_findRoute_Static/order_detail-10             	1000000000	         0.0000027 ns/op
-PASS
-```
-
-- 通配符路由
-```go
-// 通配符路由
-goos: darwin
-goarch: arm64
-pkg: geektime-go/web
-Benchmark_findRoute_Any
-Benchmark_findRoute_Any/star_match
-Benchmark_findRoute_Any/star_match-10         	1000000000	         0.0000044 ns/op
-Benchmark_findRoute_Any/star_in_middle
-Benchmark_findRoute_Any/star_in_middle-10     	1000000000	         0.0000040 ns/op
-PASS
-```
-
-- 參數路由
-```go
-// 參數路由
-goos: darwin
-goarch: arm64
-pkg: geektime-go/web
-Benchmark_findRoute_Param
-Benchmark_findRoute_Param/:id
-Benchmark_findRoute_Param/:id-10         	1000000000	         0.0000059 ns/op
-Benchmark_findRoute_Param/:id*
-Benchmark_findRoute_Param/:id*-10        	1000000000	         0.0000051 ns/op
-Benchmark_findRoute_Param/:id*#01
-Benchmark_findRoute_Param/:id*#01-10     	1000000000	         0.0000066 ns/op
-PASS
-```
-
-- 正則路由
-```go
-// 正則路由
-goos: darwin
-goarch: arm64
-pkg: geektime-go/web
-Benchmark_findRoute_RegExpr
-Benchmark_findRoute_RegExpr/:id(.*)
-Benchmark_findRoute_RegExpr/:id(.*)-10         	1000000000	         0.0000130 ns/op
-Benchmark_findRoute_RegExpr/:id([0-9]+)
-Benchmark_findRoute_RegExpr/:id([0-9]+)-10     	1000000000	         0.0000070 ns/op
-PASS
-```
-
-### 再跑benchmark一次
 - 在相同設備、相同次數、相同路徑長度下
-- 判斷單純的`靜態路由`速度最快
-- 而參數路由需要解析取值`paraString`
-- 正則路由除了取值外，還需要進行正則判斷，故花費較長時間比參數路由多了`1.06`倍
 
 - 花費時間基準比較： 正則路由 > 參數路由 > 通配符路由 > 靜態路由
+- 通過分析比較：
+  - 消耗時間： 參數路由 > 正則路由 > 靜態路由 > 通配符路由
+  - 內存使用： 參數路由 > 正則路由 > 靜態路由 > 通配符路由
+  - 通配符路由最快，參數路由最慢
+
 ```go
 // go test -run none -bench=. -benchmem
 goos: darwin
 goarch: arm64
 pkg: geektime-go/web
-Benchmark_findRoute_Static/method_not_found-10          1000000000               0.0000010 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_Static/path_not_found-10            1000000000               0.0000042 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_Static/root-10                      1000000000               0.0000055 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_Static/user_home-10                 1000000000               0.0000020 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_Static/order_detail-10              1000000000               0.0000050 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_Any/star_match-10                   1000000000               0.0000028 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_Any/star_in_middle-10               1000000000               0.0000023 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_Param/:id-10                        1000000000               0.0000063 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_Param/:id*-10                       1000000000               0.0000025 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_Param/:id*#01-10                    1000000000               0.0000034 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_RegExpr/:id(.*)-10                  1000000000               0.0000058 ns/op               0 B/op          0 allocs/op
-Benchmark_findRoute_RegExpr/:id([0-9]+)-10              1000000000               0.0000073 ns/op               0 B/op          0 allocs/op
+Benchmark_findRoute_Static-10            6265520               174.6 ns/op           112 B/op          5 allocs/op
+Benchmark_findRoute_Any-10               7515556               159.2 ns/op           112 B/op          4 allocs/op
+Benchmark_findRoute_Param-10             2002467               599.7 ns/op          1232 B/op         15 allocs/op
+Benchmark_findRoute_RegExpr-10           2969036               410.0 ns/op           832 B/op         10 allocs/op
 PASS
-ok      geektime-go/web 0.281s
+ok      geektime-go/web 6.686s
 ```
 - 透過`pprof`查看profile
   - `runtime.kevent`很像是`darwin`的file I/O開銷
   - 我們可以從`cpu`觀察到，時間花在`runtime.pthread_cond_wait`線程切換
-  - 從`memory`觀察到`正則匹配`，在內存內花費`528.17kB`、` 512.31kB`進行匹配操作
+  - 從`memory`觀察到`正則匹配`、`參數路由`，在內存內花費明顯高一些
 ```shell
 # 產生 cpu、memory profile
 go test -bench=.  \
@@ -163,34 +92,34 @@ go tool pprof cpu.pprof (mem.pprof)
 
 # ==> cpu
 Type: cpu
-Showing nodes accounting for 30ms, 100% of 30ms total
-Showing top 10 nodes out of 21
+Showing nodes accounting for 5090ms, 78.67% of 6470ms total
+Dropped 71 nodes (cum <= 32.35ms)
+Showing top 10 nodes out of 90
       flat  flat%   sum%        cum   cum%
-      10ms 33.33% 33.33%       10ms 33.33%  runtime.kevent
-      10ms 33.33% 66.67%       10ms 33.33%  runtime.pthread_cond_wait
-      10ms 33.33%   100%       10ms 33.33%  runtime.pthread_kill
-         0     0%   100%       10ms 33.33%  runtime.findRunnable
-         0     0%   100%       10ms 33.33%  runtime.mPark (inline)
-         0     0%   100%       10ms 33.33%  runtime.mcall
-         0     0%   100%       10ms 33.33%  runtime.netpoll
-         0     0%   100%       10ms 33.33%  runtime.notesleep
-         0     0%   100%       10ms 33.33%  runtime.park_m
-         0     0%   100%       10ms 33.33%  runtime.preemptM
+    2160ms 33.38% 33.38%     2160ms 33.38%  runtime.kevent
+     570ms  8.81% 42.19%      570ms  8.81%  runtime.madvise
+     510ms  7.88% 50.08%     1160ms 17.93%  runtime.mallocgc
+     500ms  7.73% 57.81%      500ms  7.73%  runtime.pthread_cond_wait
+     480ms  7.42% 65.22%      480ms  7.42%  runtime.pthread_kill
+     270ms  4.17% 69.40%      300ms  4.64%  runtime.heapBitsSetType
+     190ms  2.94% 72.33%      190ms  2.94%  runtime.usleep
+     150ms  2.32% 74.65%      160ms  2.47%  runtime.nextFreeFast (inline)
+     130ms  2.01% 76.66%      130ms  2.01%  countbytebody
+     130ms  2.01% 78.67%      130ms  2.01%  indexbytebody
 
 # ==> memory
 Type: alloc_space
-Showing nodes accounting for 6620.42kB, 100% of 6620.42kB total
-Showing top 10 nodes out of 48
+Showing nodes accounting for 8327.90MB, 99.89% of 8337.23MB total
+Dropped 57 nodes (cum <= 41.69MB)
       flat  flat%   sum%        cum   cum%
- 2050.25kB 30.97% 30.97%  2050.25kB 30.97%  runtime.allocm
- 1024.41kB 15.47% 46.44%  1024.41kB 15.47%  runtime.malg
-  902.59kB 13.63% 60.08%   902.59kB 13.63%  compress/flate.NewWriter
-  578.66kB  8.74% 68.82%   578.66kB  8.74%  runtime/pprof.StartCPUProfile
-  528.17kB  7.98% 76.79%   528.17kB  7.98%  regexp.(*bitState).reset
-  512.31kB  7.74% 84.53%   512.31kB  7.74%  regexp/syntax.(*compiler).inst (inline)
-  512.02kB  7.73% 92.27%   512.02kB  7.73%  crypto/internal/nistec.init
-  512.02kB  7.73%   100%   512.02kB  7.73%  runtime.gcBgMarkWorker
-         0     0%   100%   902.59kB 13.63%  compress/gzip.(*Writer).Write
-         0     0%   100%   512.31kB  7.74%  github.com/davecgh/go-spew/spew.init
+ 6280.33MB 75.33% 75.33%  8327.90MB 99.89%  geektime-go/web.(*Router).findRoute
+ 2047.57MB 24.56% 99.89%  2047.57MB 24.56%  strings.genSplit
+         0     0% 99.89%   891.03MB 10.69%  geektime-go/web.Benchmark_findRoute_Any
+         0     0% 99.89%  3483.71MB 41.78%  geektime-go/web.Benchmark_findRoute_Param
+         0     0% 99.89%  3173.14MB 38.06%  geektime-go/web.Benchmark_findRoute_RegExpr
+         0     0% 99.89%   780.52MB  9.36%  geektime-go/web.Benchmark_findRoute_Static
+         0     0% 99.89%  2047.57MB 24.56%  strings.Split (inline)
+         0     0% 99.89%  8328.40MB 99.89%  testing.(*B).launch
+         0     0% 99.89%  8328.91MB 99.90%  testing.(*B).runN
 
 ```
