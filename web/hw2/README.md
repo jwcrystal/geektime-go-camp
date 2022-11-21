@@ -68,10 +68,10 @@ return mdlList
 goos: darwin
 goarch: arm64
 pkg: geektime-go/web/hw2
-Benchmark_findRoute1-10                  1861298               635.7 ns/op           624 B/op         15 allocs/op
-Benchmark_findRoute1_Middleware-10        899546              1288 ns/op            1440 B/op         32 allocs/op
+Benchmark_findRoute1-10                  1841590               644.1 ns/op           624 B/op         15 allocs/op
+Benchmark_findRoute1_Middleware-10        893848              1267 ns/op            1440 B/op         32 allocs/op
 PASS
-ok      geektime-go/web/hw2     3.549s
+ok      geektime-go/web/hw2     3.583s
 
 ```
 
@@ -79,37 +79,38 @@ ok      geektime-go/web/hw2     3.549s
 
 ```shell
 Type: cpu
-Showing nodes accounting for 2350ms, 79.12% of 2970ms total
-Dropped 43 nodes (cum <= 14.85ms)
-Showing top 10 nodes out of 97
+Showing nodes accounting for 2340ms, 76.97% of 3040ms total
+Dropped 29 nodes (cum <= 15.20ms)
+Showing top 10 nodes out of 98
       flat  flat%   sum%        cum   cum%
-    1360ms 45.79% 45.79%     1360ms 45.79%  runtime.kevent
-     240ms  8.08% 53.87%      510ms 17.17%  runtime.mallocgc
-     210ms  7.07% 60.94%      210ms  7.07%  runtime.madvise
-     110ms  3.70% 64.65%      110ms  3.70%  runtime.pthread_kill
-     100ms  3.37% 68.01%      130ms  4.38%  runtime.heapBitsSetType
-      90ms  3.03% 71.04%      110ms  3.70%  runtime.mapaccess2_faststr
-      70ms  2.36% 73.40%       70ms  2.36%  indexbytebody
-      70ms  2.36% 75.76%       70ms  2.36%  runtime.pthread_cond_wait
-      50ms  1.68% 77.44%       80ms  2.69%  strings.Count
-      50ms  1.68% 79.12%      460ms 15.49%  strings.genSplit
+    1140ms 37.50% 37.50%     1140ms 37.50%  runtime.kevent
+     240ms  7.89% 45.39%      610ms 20.07%  runtime.mallocgc
+     200ms  6.58% 51.97%      200ms  6.58%  runtime.madvise
+     180ms  5.92% 57.89%      200ms  6.58%  runtime.heapBitsSetType
+     140ms  4.61% 62.50%      140ms  4.61%  runtime.pthread_cond_wait
+     110ms  3.62% 66.12%      110ms  3.62%  runtime.pthread_kill
+     100ms  3.29% 69.41%      100ms  3.29%  runtime.usleep
+      80ms  2.63% 72.04%      790ms 25.99%  geektime-go/web/hw2.(*Router).findRoute
+      80ms  2.63% 74.67%       80ms  2.63%  runtime.pthread_cond_signal
+      70ms  2.30% 76.97%       70ms  2.30%  runtime.nextFreeFast (inline)
+
 ```
 
 - mem.pprof
 
 ```shell
 Type: alloc_space
-Showing nodes accounting for 2894.67MB, 99.86% of 2898.83MB total
-Dropped 29 nodes (cum <= 14.49MB)
+Showing nodes accounting for 2978.17MB, 99.82% of 2983.47MB total
+Dropped 34 nodes (cum <= 14.92MB)
       flat  flat%   sum%        cum   cum%
- 1013.05MB 34.95% 34.95%  1661.07MB 57.30%  geektime-go/web/hw2.(*Router).findRoute
-  817.53MB 28.20% 63.15%   817.53MB 28.20%  strings.genSplit
-  780.08MB 26.91% 90.06%   780.08MB 26.91%  geektime-go/web/hw2.(*Router).findMiddleware
-  284.01MB  9.80% 99.86%  1233.60MB 42.56%  geektime-go/web/hw2.(*Router).findRouteWithMiddleware
-         0     0% 99.86%  1661.07MB 57.30%  geektime-go/web/hw2.Benchmark_findRoute1
-         0     0% 99.86%  1233.60MB 42.56%  geektime-go/web/hw2.Benchmark_findRoute1_Middleware
-         0     0% 99.86%   817.53MB 28.20%  strings.Split (inline)
-         0     0% 99.86%  2894.67MB 99.86%  testing.(*B).launch
-         0     0% 99.86%  2894.67MB 99.86%  testing.(*B).runN
+ 1083.55MB 36.32% 36.32%  1746.57MB 58.54%  geektime-go/web/hw2.(*Router).findRoute
+  832.53MB 27.90% 64.22%   832.53MB 27.90%  strings.genSplit
+  770.58MB 25.83% 90.05%   770.58MB 25.83%  geektime-go/web/hw2.(*Router).findMiddleware
+  291.51MB  9.77% 99.82%  1231.60MB 41.28%  geektime-go/web/hw2.(*Router).findRouteWithMiddleware
+         0     0% 99.82%  1747.07MB 58.56%  geektime-go/web/hw2.Benchmark_findRoute1
+         0     0% 99.82%  1231.60MB 41.28%  geektime-go/web/hw2.Benchmark_findRoute1_Middleware
+         0     0% 99.82%   832.53MB 27.90%  strings.Split (inline)
+         0     0% 99.82%  2978.67MB 99.84%  testing.(*B).launch
+         0     0% 99.82%  2978.67MB 99.84%  testing.(*B).runN
 
 ```
