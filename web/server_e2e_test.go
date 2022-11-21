@@ -4,12 +4,19 @@ package web
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 )
 
 func TestHttpServer(t *testing.T) {
 	s := NewHttpServer()
 
+	s.UseV1(http.MethodGet, "/", func(next HandleFunc) HandleFunc {
+		return func(ctx *Context) {
+			ctx.Res.Write([]byte(fmt.Sprintf("hello 111 %s\n", ctx.Req.URL.Path)))
+			next(ctx)
+		}
+	})
 	s.Get("/", func(ctx *Context) {
 		ctx.Res.Write([]byte("hello, world"))
 	})
@@ -19,6 +26,7 @@ func TestHttpServer(t *testing.T) {
 	s.Get("/user/:username", func(ctx *Context) {
 		ctx.Res.Write([]byte(fmt.Sprintf("hello, %s", ctx.PathParams["username"])))
 	})
+
 	err := s.Start(":8081")
 	if err != nil {
 		return

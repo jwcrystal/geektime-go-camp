@@ -1,6 +1,7 @@
 package web
 
 import (
+	"log"
 	"net"
 	"net/http"
 )
@@ -72,10 +73,25 @@ func (h *HttpServer) ServeHTTP(writer http.ResponseWriter, request *http.Request
 		//h.middlewares = append(h.middlewares)
 		root = h.middlewares[i](root)
 	}
+	var m Middleware = func(next HandleFunc) HandleFunc {
+		return func(ctx *Context) {
+			next(ctx)
+			h.flashResp(ctx)
+		}
+	}
+	root = m(root)
 	root(ctx)
 }
 
-func (h *HttpServer) Use(method string, path string, mdls ...Middleware) {
+func (s *HttpServer) Use(mdls ...Middleware) {
+	if s.middlewares == nil {
+		s.middlewares = mdls
+		return
+	}
+	s.middlewares = append(s.middlewares, mdls...)
+}
+
+func (h *HttpServer) UseV1(method string, path string, mdls ...Middleware) {
 	h.addRoute(method, path, nil, mdls...)
 }
 
@@ -113,7 +129,7 @@ func (h *HttpServer) serve(ctx *Context) {
 	// before route
 	route, ok := h.router.findRoute(ctx.Req.Method, ctx.Req.URL.Path)
 	// after route
-	if !ok {
+	if !ok || route.node.handler == nil || route.node == nil {
 		ctx.Res.WriteHeader(http.StatusNotFound)
 		ctx.Res.Write([]byte("Not found"))
 		return
@@ -125,4 +141,14 @@ func (h *HttpServer) serve(ctx *Context) {
 	// before execute
 	route.node.handler(ctx)
 	// after execute
+}
+
+func (s *HttpServer) flashResp(ctx *Context) {
+	if ctx.ResStatusCode > 0 {
+		ctx.Res.WriteHeader(ctx.ResStatusCode)
+	}
+	_, err := ctx.Res.Write(ctx.ResData)
+	if err != nil {
+		log.Fatalln("回写响应失败", err)
+	}
 }

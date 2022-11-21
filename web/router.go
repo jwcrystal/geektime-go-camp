@@ -127,8 +127,8 @@ func (r *Router) findRoute(method string, path string) (*matchInfo, bool) {
 
 	if path == "/" {
 		return &matchInfo{
-			node:        root,
-			middlewares: root.middlewares,
+			node: root,
+			//middlewares: root.middlewares,
 		}, true
 	}
 
@@ -136,8 +136,10 @@ func (r *Router) findRoute(method string, path string) (*matchInfo, bool) {
 	segs := strings.Split(strings.Trim(path, "/"), "/")
 	var pathParams map[string]string
 	matchInfo := &matchInfo{}
+	child := root
 	for _, seg := range segs {
-		child, paramChild, found := root.childOf(seg)
+		var paramChild, found bool
+		child, paramChild, found = child.childOf(seg)
 		if !found {
 			// 檢查是否為通配末尾，支援多段路由
 			// 可以用 type區分 ，或是 通配後字段是否結束 來區分
@@ -147,7 +149,7 @@ func (r *Router) findRoute(method string, path string) (*matchInfo, bool) {
 			// /order/detail/123/456/789 (x)
 			// 要找最後為通配的字段，所以用root，child會採用當前字段
 			if root.nodeType == nodeTypeAny {
-				matchInfo.node = root
+				matchInfo.node = child
 				return matchInfo, true
 			}
 			return nil, false
@@ -162,15 +164,16 @@ func (r *Router) findRoute(method string, path string) (*matchInfo, bool) {
 			paraString := strings.Split(child.path[1:], "(")[0]
 			pathParams[paraString] = seg
 		}
-		root = child
-		//root.matchedMdls = append(root.matchedMdls, root.matchedMdls...)
-		//root.middlewares = append(root.middlewares, root.middlewares...)
+		//root = child
+		//if len(child.middlewares) > 0 {
+		//	root.middlewares = append(root.middlewares, child.middlewares...)
+		//}
 	}
 
-	matchInfo.node = root
+	matchInfo.node = child
 	matchInfo.pathParams = pathParams
 	//matchInfo.middlewares = root.middlewares
-	matchInfo.middlewares = r.findMiddleware(root, segs)
+	//matchInfo.middlewares = r.findMiddleware(root, segs)
 	// return "true" => 不會處理node有無handler的情況
 	return matchInfo, true
 }
@@ -185,37 +188,98 @@ func (r *Router) findMiddleware(root *node, segs []string) []Middleware {
 	for i, _ := range segs {
 		seg := segs[i]
 		var children []*node
-		for _, curr := range queue {
-			if len(curr.middlewares) > 0 {
-				mdlList = append(mdlList, curr.middlewares...)
+		for _, currNode := range queue {
+			children = append(children, currNode.childrenOf(seg)...)
+			if len(currNode.middlewares) > 0 {
+				mdlList = append(mdlList, currNode.middlewares...)
 			}
-			children = append(children, curr.childrenOf(seg)...)
 		}
-		// 該層遍歷
+		// 下層遍歷
 		queue = children
 	}
-	for _, curr := range queue {
-		if len(curr.middlewares) > 0 {
-			mdlList = append(mdlList, curr.middlewares...)
+	// leaf遍歷
+	for _, currNode := range queue {
+		if len(currNode.middlewares) > 0 {
+			mdlList = append(mdlList, currNode.middlewares...)
 		}
 	}
 	return mdlList
 }
 
+func (r *Router) findRouteWithMiddleware(method string, path string) (*matchInfo, bool) {
+	root, ok := r.trees[method]
+	if !ok {
+		return nil, false
+	}
+
+	if path == "/" {
+		return &matchInfo{
+			node:        root,
+			middlewares: root.middlewares,
+		}, true
+	}
+
+	// Trim head and tail with "/", and separate with "/"
+	segs := strings.Split(strings.Trim(path, "/"), "/")
+	var pathParams map[string]string
+	matchInfo := &matchInfo{}
+	child := root
+	for _, seg := range segs {
+		var paramChild, found bool
+		child, paramChild, found = child.childOf(seg)
+		if !found {
+			// 檢查是否為通配末尾，支援多段路由
+			// 可以用 type區分 ，或是 通配後字段是否結束 來區分
+			// /order/*
+			// /order/detail/123 (x)
+			// /order/detail/123/456 (x)
+			// /order/detail/123/456/789 (x)
+			// 要找最後為通配的字段，所以用root，child會採用當前字段
+			if root.nodeType == nodeTypeAny {
+				matchInfo.node = child
+				return matchInfo, true
+			}
+			return nil, false
+		}
+		// 命中 參數路由
+		if paramChild {
+			if pathParams == nil {
+				pathParams = make(map[string]string)
+			}
+			// 參數路由格式為 :id
+			// 如果是正則路由，只取paraString部分
+			paraString := strings.Split(child.path[1:], "(")[0]
+			pathParams[paraString] = seg
+		}
+		//root = child
+		//if len(child.middlewares) > 0 {
+		//	root.middlewares = append(root.middlewares, child.middlewares...)
+		//}
+	}
+
+	matchInfo.node = child
+	matchInfo.pathParams = pathParams
+	//matchInfo.middlewares = root.middlewares
+	matchInfo.middlewares = r.findMiddleware(root, segs)
+	// return "true" => 不會處理node有無handler的情況
+	return matchInfo, true
+}
+
 func (n *node) childrenOf(path string) []*node {
 	childNode := make([]*node, 0, 4)
-	var currNode *node
+	var staticChild *node
 	if n.children != nil {
-		currNode = n.children[path]
+		staticChild = n.children[path]
 	}
+	// priority: any > param > static
 	if n.starChild != nil {
 		childNode = append(childNode, n.starChild)
 	}
 	if n.paramChild != nil {
 		childNode = append(childNode, n.paramChild)
 	}
-	if currNode != nil {
-		childNode = append(childNode, currNode)
+	if staticChild != nil {
+		childNode = append(childNode, staticChild)
 	}
 	return childNode
 }

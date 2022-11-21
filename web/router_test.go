@@ -681,130 +681,6 @@ func TestRouter_findRoute(t *testing.T) {
 	}
 }
 
-func TestRouter_findRoute_Middleware(t *testing.T) {
-	mdlBuilder := func(i byte) Middleware {
-		return func(next HandleFunc) HandleFunc {
-			return func(ctx *Context) {
-				ctx.ResData = append(ctx.ResData, i)
-				next(ctx)
-			}
-		}
-	}
-
-	mdlsRoute := []struct {
-		method string
-		path   string
-		mdls   []Middleware
-	}{
-		// static
-		{
-			method: http.MethodGet,
-			path:   "/a/b",
-			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b')},
-		},
-		{
-			method: http.MethodDelete,
-			path:   "/",
-			mdls:   []Middleware{mdlBuilder('/')},
-		},
-		//{
-		//	method: http.MethodPost,
-		//	path:   "/a/b/c",
-		//	mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b'), mdlBuilder('c')},
-		//},
-		// Any
-		//{
-		//	method: http.MethodGet,
-		//	path:   "/a/*",
-		//	mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('*')},
-		//},
-		//{
-		//	method: http.MethodGet,
-		//	path:   "/a/b/*",
-		//	mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b'), mdlBuilder('*')},
-		//},
-		//{
-		//	method: http.MethodPost,
-		//	path:   "/a/b/*",
-		//	mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b'), mdlBuilder('*')},
-		//},
-		//{
-		//	method: http.MethodPost,
-		//	path:   "/a/*/c",
-		//	mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('*'), mdlBuilder('c')},
-		//},
-	}
-
-	r := NewRouter()
-	for _, mdlRoute := range mdlsRoute {
-		r.addRoute(mdlRoute.method, mdlRoute.path, nil, mdlRoute.mdls...)
-	}
-	testCases := []struct {
-		name   string
-		method string
-		path   string
-		// 借助 ctx 裡面的 resData 字段來判斷 Middleware 是否一樣
-		wantRes string
-	}{
-		{
-			name:   "static, not match",
-			method: http.MethodGet,
-			path:   "/a",
-		},
-		{
-			name:    "static, match",
-			method:  http.MethodGet,
-			path:    "/a/b",
-			wantRes: "ab",
-		},
-		{
-			name:    "root",
-			method:  http.MethodDelete,
-			path:    "/",
-			wantRes: "/",
-		},
-		//{
-		//	name:    "root star",
-		//	method:  http.MethodDelete,
-		//	path:    "/a",
-		//	wantRes: "/*",
-		//},
-		//{
-		//	name:    "abc",
-		//	method:  http.MethodPost,
-		//	path:    "/a/b/c",
-		//	wantRes: "a*cab*abc",
-		//},
-		//{
-		//	name:    "static and star",
-		//	method:  http.MethodGet,
-		//	path:    "/a/b",
-		//	wantRes: "a*ab",
-		//},
-		//{
-		//	name:    "static and star",
-		//	method:  http.MethodGet,
-		//	path:    "/a/b/c",
-		//	wantRes: "a*abab*",
-		//},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			matchChild, _ := r.findRoute(tc.method, tc.path)
-			mdls := matchChild.middlewares
-			var root HandleFunc = func(ctx *Context) {
-				// string 可讀性較高
-				assert.Equal(t, tc.wantRes, string(ctx.ResData))
-			}
-			for i := len(mdls) - 1; i >= 0; i-- {
-				root = mdls[i](root)
-			}
-			root(&Context{ResData: make([]byte, 0, len(tc.wantRes))})
-		})
-	}
-}
-
 func Benchmark_findRoute_Static(t *testing.B) {
 	testRoutes := []struct {
 		method string
@@ -1098,6 +974,421 @@ func Benchmark_findRoute_RegExpr(t *testing.B) {
 	for i := 0; i < t.N; i++ {
 		for _, tc := range testCases {
 			r.findRoute(tc.method, tc.path)
+		}
+	}
+}
+
+func TestRouter_findRoute_Middleware(t *testing.T) {
+	var mdlBuilder = func(i byte) Middleware {
+		return func(next HandleFunc) HandleFunc {
+			return func(ctx *Context) {
+				ctx.ResData = append(ctx.ResData, i)
+				next(ctx)
+			}
+		}
+	}
+	mdlsRoute := []struct {
+		method string
+		path   string
+		mdls   []Middleware
+	}{
+		{
+			method: http.MethodGet,
+			path:   "/a/b",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b')},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/a/*",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('*')},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/a/b/*",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b'), mdlBuilder('*')},
+		},
+		{
+			method: http.MethodPost,
+			path:   "/a/b/*",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b'), mdlBuilder('*')},
+		},
+		{
+			method: http.MethodPost,
+			path:   "/a/*/c",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('*'), mdlBuilder('c')},
+		},
+		{
+			method: http.MethodPost,
+			path:   "/a/b/c",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b'), mdlBuilder('c')},
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/*",
+			mdls:   []Middleware{mdlBuilder('*')},
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/",
+			mdls:   []Middleware{mdlBuilder('/')},
+		},
+	}
+	r := NewRouter()
+	for _, mdlRoute := range mdlsRoute {
+		r.addRoute(mdlRoute.method, mdlRoute.path, nil, mdlRoute.mdls...)
+	}
+	testCases := []struct {
+		name   string
+		method string
+		path   string
+		// 我们借助 ctx 里面的 RespData 字段来判断 middleware 有没有按照预期执行
+		wantResp string
+	}{
+		{
+			name:   "static, not match",
+			method: http.MethodGet,
+			path:   "/a",
+		},
+		{
+			name:     "static, match",
+			method:   http.MethodGet,
+			path:     "/a/c",
+			wantResp: "a*",
+		},
+		{
+			name:     "static and star",
+			method:   http.MethodGet,
+			path:     "/a/b",
+			wantResp: "a*ab",
+		},
+		{
+			name:     "static and star",
+			method:   http.MethodGet,
+			path:     "/a/b/c",
+			wantResp: "a*abab*",
+		},
+		{
+			name:     "abc",
+			method:   http.MethodPost,
+			path:     "/a/b/c",
+			wantResp: "a*cab*abc",
+		},
+		{
+			name:     "root",
+			method:   http.MethodDelete,
+			path:     "/",
+			wantResp: "/",
+		},
+		{
+			name:     "root star",
+			method:   http.MethodDelete,
+			path:     "/a",
+			wantResp: "/*",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mi, _ := r.findRouteWithMiddleware(tc.method, tc.path)
+			mdls := mi.middlewares
+			var root HandleFunc = func(ctx *Context) {
+				// 使用 string 可读性比较高
+				assert.Equal(t, tc.wantResp, string(ctx.ResData))
+			}
+			for i := len(mdls) - 1; i >= 0; i-- {
+				root = mdls[i](root)
+			}
+			// 开始调度
+			root(&Context{
+				ResData: make([]byte, 0, len(tc.wantResp)),
+			})
+		})
+	}
+}
+
+func Benchmark_findRoute1(b *testing.B) {
+	testRoutes := []struct {
+		method string
+		path   string
+	}{
+		// static route
+		{
+			method: http.MethodDelete,
+			path:   "/",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/home",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/order/detail",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/order/create",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/login",
+		},
+		//// 通配符測試用例
+		{
+			method: http.MethodPost,
+			path:   "/order/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/*/home",
+		},
+	}
+
+	mockHandler := func(ctx *Context) {}
+	r := NewRouter()
+	for _, route := range testRoutes {
+		r.addRoute(route.method, route.path, mockHandler)
+	}
+
+	testCases := []struct {
+		name      string
+		method    string
+		path      string
+		wantFound bool
+		matchInfo *matchInfo
+	}{
+		{
+			name:      "root",
+			method:    http.MethodDelete,
+			path:      "/",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "/",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			// 完全命中
+			name:      "user home",
+			method:    http.MethodGet,
+			path:      "/user/home",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "home",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			// 完全命中
+			name:      "order detail",
+			method:    http.MethodGet,
+			path:      "/order/detail",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "detail",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			name:      "no handler",
+			method:    http.MethodGet,
+			path:      "/order",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path: "order",
+					children: map[string]*node{
+						"detail": {
+							path:    "detail",
+							handler: mockHandler,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:      "two layer",
+			method:    http.MethodPost,
+			path:      "/order/create",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "create",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			// 命中 /order/*, * matched
+			name:      "star matched",
+			method:    http.MethodPost,
+			path:      "/order/home",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			// 命中 /order/*/home, * matched
+			name:      "star in the middle",
+			method:    http.MethodGet,
+			path:      "/user/user/home",
+			wantFound: true,
+			matchInfo: &matchInfo{
+				node: &node{
+					path:    "home",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			// 比 /order/* 多了一段，支持末尾通配一段
+			name:      "overflow",
+			method:    http.MethodPost,
+			path:      "/order/delete/123",
+			wantFound: true,
+			matchInfo: &matchInfo{ //支持通配末尾多段
+				node: &node{
+					path:     "*",
+					handler:  mockHandler,
+					nodeType: nodeTypeAny,
+				},
+			},
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, tc := range testCases {
+			r.findRoute(tc.method, tc.path)
+		}
+	}
+}
+
+func Benchmark_findRoute1_Middleware(b *testing.B) {
+	var mdlBuilder = func(i byte) Middleware {
+		return func(next HandleFunc) HandleFunc {
+			return func(ctx *Context) {
+				ctx.ResData = append(ctx.ResData, i)
+				next(ctx)
+			}
+		}
+	}
+	mdlsRoute := []struct {
+		method string
+		path   string
+		mdls   []Middleware
+	}{
+		{
+			method: http.MethodGet,
+			path:   "/a/b",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b')},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/a/*",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('*')},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/a/b/*",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b'), mdlBuilder('*')},
+		},
+		{
+			method: http.MethodPost,
+			path:   "/a/b/*",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b'), mdlBuilder('*')},
+		},
+		{
+			method: http.MethodPost,
+			path:   "/a/*/c",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('*'), mdlBuilder('c')},
+		},
+		{
+			method: http.MethodPost,
+			path:   "/a/b/c",
+			mdls:   []Middleware{mdlBuilder('a'), mdlBuilder('b'), mdlBuilder('c')},
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/*",
+			mdls:   []Middleware{mdlBuilder('*')},
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/",
+			mdls:   []Middleware{mdlBuilder('/')},
+		},
+	}
+	r := NewRouter()
+	for _, mdlRoute := range mdlsRoute {
+		r.addRoute(mdlRoute.method, mdlRoute.path, nil, mdlRoute.mdls...)
+	}
+	testCases := []struct {
+		name   string
+		method string
+		path   string
+		// 我们借助 ctx 里面的 RespData 字段来判断 middleware 有没有按照预期执行
+		wantResp string
+	}{
+		{
+			name:   "static, not match",
+			method: http.MethodGet,
+			path:   "/a",
+		},
+		{
+			name:     "static, match",
+			method:   http.MethodGet,
+			path:     "/a/c",
+			wantResp: "a*",
+		},
+		{
+			name:     "static and star",
+			method:   http.MethodGet,
+			path:     "/a/b",
+			wantResp: "a*ab",
+		},
+		{
+			name:     "static and star",
+			method:   http.MethodGet,
+			path:     "/a/b/c",
+			wantResp: "a*abab*",
+		},
+		{
+			name:     "abc",
+			method:   http.MethodPost,
+			path:     "/a/b/c",
+			wantResp: "a*cab*abc",
+		},
+		{
+			name:     "root",
+			method:   http.MethodDelete,
+			path:     "/",
+			wantResp: "/",
+		},
+		{
+			name:     "root star",
+			method:   http.MethodDelete,
+			path:     "/a",
+			wantResp: "/*",
+		},
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, tc := range testCases {
+			r.findRouteWithMiddleware(tc.method, tc.path)
 		}
 	}
 }
