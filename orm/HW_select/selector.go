@@ -15,6 +15,7 @@ import (
 
 type Selector[T any] struct {
 	table   string
+	columns []Selectable
 	where   []Predicate
 	model   *model.Model
 	sb      strings.Builder
@@ -33,6 +34,16 @@ func NewSelector[T any](db *DB) *Selector[T] {
 	}
 }
 
+func (s *Selector[T]) Select(cols ...Selectable) *Selector[T] {
+	s.columns = cols
+	return s
+}
+
+func (s *Selector[T]) From(table string) *Selector[T] {
+	s.table = table
+	return s
+}
+
 func (s *Selector[T]) Build() (*Query, error) {
 	// get table name
 	//var (
@@ -43,17 +54,17 @@ func (s *Selector[T]) Build() (*Query, error) {
 	// or
 	var err error
 	s.model, err = model.ParseModel(new(T))
-
+	// TODO: 重構 DB Parse MODEL
+	//s.model,err = s.db.model.
 	if err != nil {
 		return nil, err
 	}
-	//var sb strings.Builder
-	//s.sb.WriteString("SELECT ")
-	//if err = s.buildColumns(); err != nil {
-	//	return nil, err
-	//}
-	//s.sb.WriteString(" FROM ")
-	s.sb.WriteString("SELECT * FROM ")
+
+	s.sb.WriteString("SELECT ")
+	if err = s.buildColumns(); err != nil {
+		return nil, err
+	}
+	s.sb.WriteString(" FROM ")
 	if s.table == "" {
 		s.sb.WriteByte('`')
 		s.sb.WriteString(s.model.TableName)
@@ -62,7 +73,6 @@ func (s *Selector[T]) Build() (*Query, error) {
 		s.sb.WriteString(s.table)
 	}
 
-	//args := make([]any, 0, 4)
 	// 構建 Where
 	if len(s.where) > 0 {
 		s.sb.WriteString(" WHERE ")
@@ -156,7 +166,6 @@ func (s *Selector[T]) buildGroupBy(groupBy []Column) error {
 }
 
 func (s *Selector[T]) buildOrderBy() error {
-	// 依照順序排序，default採用 ASC
 	// e.g. age, id ...etc, 表示先排序 age，再排序 id
 	for idx, val := range s.orderBy {
 		if idx > 0 {
@@ -169,6 +178,36 @@ func (s *Selector[T]) buildOrderBy() error {
 		}
 		s.sb.WriteByte(' ')
 		s.sb.WriteString(val.order)
+	}
+	return nil
+}
+
+func (s *Selector[T]) buildColumns() error {
+	if len(s.columns) == 0 {
+		s.sb.WriteByte('*')
+		return nil
+	}
+	for idx, col := range s.columns {
+		if idx > 0 {
+			s.sb.WriteByte(',')
+		}
+		switch val := col.(type) {
+		case Column:
+			if err := s.buildColumn(val.name, val.alias); err != nil {
+				return err
+			}
+		case Aggregate:
+			if err := s.buildAggregate(val, true); err != nil {
+				return err
+			}
+		case RawExpr:
+			s.sb.WriteString(val.raw)
+			if len(val.args) != 0 {
+				s.addArgs(val.args...)
+			}
+		default:
+			return errs.NewErrUnsupportedSelectable(col)
+		}
 	}
 	return nil
 }
@@ -217,10 +256,15 @@ func (s *Selector[T]) buildExpression(e Expression) error {
 		s.addArgs(expr.val)
 		// 剩下不考慮
 	case RawExpr:
-		s.sb.WriteByte('(')
+		//s.sb.WriteByte('(')
+		//s.sb.WriteString(expr.raw)
+		//s.addArgs(expr.args...)
+		//s.sb.WriteByte(')')
+		// 用戶自己管
 		s.sb.WriteString(expr.raw)
-		s.addArgs(expr.args...)
-		s.sb.WriteByte(')')
+		if len(expr.args) != 0 {
+			s.addArgs(expr.args...)
+		}
 	case Predicate:
 		_, lp := expr.left.(Predicate)
 		if lp {
@@ -272,11 +316,6 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 func (s *Selector[T]) GetMulti(ctx context.Context) (*T, error) {
 	//TODO implement me
 	panic("implement me")
-}
-
-func (s *Selector[T]) From(table string) *Selector[T] {
-	s.table = table
-	return s
 }
 
 // ids := []int{1,2,3}

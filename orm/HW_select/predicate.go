@@ -1,9 +1,5 @@
 package orm
 
-type Column struct {
-	name string
-}
-
 // 衍生類型
 type op string
 
@@ -39,37 +35,6 @@ func (Predicate) expr() {}
 //	}
 //}
 
-func C(name string) Column {
-	return Column{name: name}
-}
-
-func (Column) expr() {}
-
-// Col("id").Eq(12)
-func (c Column) Eq(arg any) Predicate {
-	return Predicate{
-		left:  c,
-		op:    opEq,
-		right: value{val: arg},
-	}
-}
-
-func (c Column) Lt(arg any) Predicate {
-	return Predicate{
-		left:  c,
-		op:    opLt,
-		right: value{val: arg},
-	}
-}
-
-func (c Column) Gt(arg any) Predicate {
-	return Predicate{
-		left:  c,
-		op:    opGt,
-		right: value{val: arg},
-	}
-}
-
 func Not(p Predicate) Predicate {
 	return Predicate{
 		op:    opNot,
@@ -95,12 +60,6 @@ func (left Predicate) Or(right Predicate) Predicate {
 	}
 }
 
-type value struct {
-	val any
-}
-
-func (value) expr() {}
-
 // Expression 標記接口，代表表達式
 type Expression interface {
 	expr()
@@ -113,8 +72,4 @@ func exprOf(e any) Expression {
 	default:
 		return valueOf(expr)
 	}
-}
-
-func valueOf(v any) value {
-	return value{val: v}
 }

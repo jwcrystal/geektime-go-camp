@@ -11,7 +11,13 @@ type Aggregate struct {
 // selectable 標記接口
 func (a Aggregate) selectable() {}
 func (a Aggregate) expr()       {}
-
+func (a Aggregate) As(alias string) Aggregate {
+	return Aggregate{
+		fn:    a.fn,
+		arg:   a.arg,
+		alias: alias,
+	}
+}
 func Avg(c string) Aggregate {
 	return Aggregate{
 		fn:  "AVG",

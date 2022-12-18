@@ -1,9 +1,13 @@
 package orm
 
-import "database/sql"
+import (
+	"database/sql"
+	"geektime-go/orm/HW_select/model"
+)
 
 type DB struct {
-	db *sql.DB
+	model *model.Model
+	db    *sql.DB
 }
 
 type DBOption func(*DB)

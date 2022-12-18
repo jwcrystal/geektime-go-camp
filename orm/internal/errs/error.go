@@ -19,3 +19,6 @@ func NewErrUnknownField(name string) error {
 func NewErrUnsupportedExpression(expr any) error {
 	return fmt.Errorf("orm: 不支持表達式類型 %v", expr)
 }
+func NewErrUnsupportedSelectable(expr any) error {
+	return fmt.Errorf("orm: 不支持目標列 %v", expr)
+}

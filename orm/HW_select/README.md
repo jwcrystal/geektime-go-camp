@@ -17,7 +17,7 @@
 
   - GROUP BY , HAVING 
   - ORDER BY
-  - [ ] OFFSET  x LIMIT y
+  - OFFSET  x LIMIT y
   - [ ] 支持 `LIMIT` 後，原本 `GET` 方法設計為 `LIMIT 1`
   - [ ] HAVING，可提供 2 種寫法
 

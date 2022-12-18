@@ -68,6 +68,13 @@ func TestSelector_OrderBy(t *testing.T) {
 			},
 		},
 		{
+			name: "column",
+			q:    NewSelector[TestModel](db).OrderBy(Asc("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM `test_model` ORDER BY `age` ASC;",
+			},
+		},
+		{
 			name: "columns",
 			q:    NewSelector[TestModel](db).OrderBy(Asc("Age"), Desc("Id")),
 			wantQuery: &Query{
@@ -311,4 +318,83 @@ func TestSelector_Build(t *testing.T) {
 			assert.Equal(t, tc.wantQuery, query)
 		})
 	}
+}
+
+func TestSelector_Select(t *testing.T) {
+	db := memoryDB(t)
+	testCases := []struct {
+		name      string
+		q         QueryBuilder
+		wantQuery *Query
+		wantError error
+	}{
+		{
+			name: "all",
+			q:    NewSelector[TestModel](db),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM `test_model`;",
+			},
+		},
+		{
+			name:      "invalid column",
+			q:         NewSelector[TestModel](db).Select(Avg("Invalid")),
+			wantError: errs.NewErrUnknownField("Invalid"),
+		},
+		{
+			name: "partial column",
+			q:    NewSelector[TestModel](db).Select(C("Id")),
+			wantQuery: &Query{
+				SQL: "SELECT `id` FROM `test_model`;",
+			},
+		},
+		{
+			name: "avg",
+			q:    NewSelector[TestModel](db).Select(Avg("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT AVG(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "raw expression",
+			q:    NewSelector[TestModel](db).Select(Raw("COUNT(DISTINCT `first_name`)")),
+			wantQuery: &Query{
+				SQL: "SELECT COUNT(DISTINCT `first_name`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "alias",
+			q: NewSelector[TestModel](db).
+				Select(C("Id").As("my_id"),
+					Avg("Age").As("avg_age")),
+			wantQuery: &Query{
+				SQL: "SELECT `id` AS `my_id`,AVG(`age`) AS `avg_age` FROM `test_model`;",
+			},
+		},
+		// WHERE 忽略別名
+		{
+			name: "where ignore alias",
+			q: NewSelector[TestModel](db).
+				Where(C("Id").As("my_id").Lt(100)),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE `id` < ?;",
+				Args: []any{100},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			query, err := tc.q.Build()
+			assert.Equal(t, tc.wantError, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, tc.wantQuery, query)
+		})
+	}
+
+}
+
+func TestSelector_Get(t *testing.T) {
+	//mockDB, mock, err := sqlmock.New()
 }
