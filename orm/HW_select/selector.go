@@ -309,8 +309,22 @@ func (s *Selector[T]) buildAs(alias string) {
 }
 
 func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
-	//TODO implement me
-	panic("implement me")
+	query, err := s.Build()
+	if err != nil {
+		return nil, err
+	}
+	// s.db 是 Selector 結構體 定義的 DB
+	// s.db.db 是 結構體裡面使用的 sql.DB
+	rows, err := s.db.db.QueryContext(ctx, query.SQL, query.Args...)
+	if err != nil {
+		return nil, err
+	}
+
+	if !rows.Next() {
+		return nil, errs.ErrNoRows
+	}
+	tp := new(T)
+	return tp, nil
 }
 
 func (s *Selector[T]) GetMulti(ctx context.Context) (*T, error) {

@@ -1,8 +1,12 @@
 package orm
 
 import (
+	"context"
+	"errors"
 	"geektime-go/orm/internal/errs"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -140,6 +144,17 @@ func TestSelector_Having(t *testing.T) {
 				Having(Avg("Age").Eq(18)),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `test_model` GROUP BY `age` HAVING AVG(`age`) = ?;",
+				Args: []any{18},
+			},
+		},
+		{
+			// aggregate 聚合函數, 型態 2
+			name: "avg_type 2",
+			q: NewSelector[TestModel](db).Select(Avg("Age").As("avg_age")).
+				GroupBy(C("FirstName")).
+				Having(Raw("`avg_age` < ?", 18).AsPredicate()),
+			wantQuery: &Query{
+				SQL:  "SELECT AVG(`age`) AS `avg_age` FROM `test_model` GROUP BY `first_name` HAVING `avg_age` < ?;",
 				Args: []any{18},
 			},
 		},
@@ -396,5 +411,78 @@ func TestSelector_Select(t *testing.T) {
 }
 
 func TestSelector_Get(t *testing.T) {
-	//mockDB, mock, err := sqlmock.New()
+	mockDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	defer func() {
+		_ = mockDB.Close()
+	}()
+	db, err := OpenDB(mockDB)
+	require.NoError(t, err)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	//// query error
+	//mock.ExpectQuery("SELECT .*").WillReturnError(errors.New("query error"))
+	//
+	//// no rows
+	//rows := sqlmock.NewRows([]string{"id", "first_name", "age", "last_name"})
+	//mock.ExpectQuery("SELECT .*").WillReturnRows(rows)
+	//
+	//// get data
+	//rows = sqlmock.NewRows([]string{"id", "first_name", "age", "last_name"})
+	//rows.AddRow("1", "Tom", "18", "Jerry")
+	//mock.ExpectQuery("SELECT .*").WillReturnRows(rows)
+	//
+	//// scan error
+	//rows = sqlmock.NewRows([]string{"id", "first_name", "age", "last_name"})
+	//rows.AddRow("abc", "Tom", "18", "Jerry")
+	//mock.ExpectQuery("SELECT .*").WillReturnRows(rows)
+
+	testCases := []struct {
+		name      string
+		query     string
+		mockError error
+		mockRows  *sqlmock.Rows
+		wantValue *TestModel
+		wantError error
+	}{
+		{
+			name:      "query error",
+			mockError: errors.New("invalid query"),
+			wantError: errors.New("invalid query"),
+			// 正則表達式
+			query: "SELECT .*",
+		},
+		{
+			name:      "no rows",
+			wantError: errs.ErrNoRows,
+			// 正則表達式
+			query:    "SELECT .*",
+			mockRows: sqlmock.NewRows([]string{"id"}),
+		},
+	}
+
+	// mock 查詢和實際查詢需要完全一致
+	// 跟上面的 mockSQL 是相同行為
+	for _, tc := range testCases {
+		expr := mock.ExpectQuery(tc.query)
+		if tc.mockError != nil {
+			expr.WillReturnError(tc.mockError)
+		} else {
+			expr.WillReturnRows(tc.mockRows)
+		}
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ret, err := NewSelector[TestModel](db).Get(context.Background())
+			if err != nil {
+				return
+			}
+			assert.Equal(t, tc.wantValue, ret)
+		})
+	}
 }

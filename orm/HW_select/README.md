@@ -19,7 +19,8 @@
   - ORDER BY
   - OFFSET  x LIMIT y
   - [ ] 支持 `LIMIT` 後，原本 `GET` 方法設計為 `LIMIT 1`
-  - [ ] HAVING，可提供 2 種寫法
+  - [x] HAVING，可提供 2 種寫法
+    - 型態 2 ： 採用 `Raw Expression` 實現
 
   ```sql
   # 基本會支持
