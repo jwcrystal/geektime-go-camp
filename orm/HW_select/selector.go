@@ -315,6 +315,7 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	}
 	// s.db 是 Selector 結構體 定義的 DB
 	// s.db.db 是 結構體裡面使用的 sql.DB
+	// 採用 QueryContext，可以跟 GetMulti 復用同一份處理結果集代碼
 	rows, err := s.db.db.QueryContext(ctx, query.SQL, query.Args...)
 	if err != nil {
 		return nil, err
