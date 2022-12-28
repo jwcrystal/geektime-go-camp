@@ -23,3 +23,7 @@ func NewErrUnsupportedExpression(expr any) error {
 func NewErrUnsupportedSelectable(exp any) error {
 	return fmt.Errorf("orm: 不支持目標列 %v", exp)
 }
+
+func NewErrInvalidTagContent(tag string) error {
+	return fmt.Errorf("orm: 錯誤標籤設定 - %s", tag)
+}

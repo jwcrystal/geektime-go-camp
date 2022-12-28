@@ -2,8 +2,8 @@ package orm
 
 import (
 	"context"
+	"geektime-go/orm/HW_select/model"
 	"geektime-go/orm/internal/errs"
-	"geektime-go/orm/model"
 	"strings"
 )
 
@@ -53,13 +53,13 @@ func (s *Selector[T]) Build() (*Query, error) {
 	//m, err := model.ParseModel(&t)
 	// or
 	var err error
-	s.model, err = model.ParseModel(new(T))
-	// TODO: 重構 DB Parse MODEL
-	//s.model,err = s.db.model.
+	// s.model, err = model.ParseModel(new(T))
+
+	// Refactor:  be with Registry
+	s.model, err = s.db.r.Get(new(T))
 	if err != nil {
 		return nil, err
 	}
-
 	s.sb.WriteString("SELECT ")
 	if err = s.buildColumns(); err != nil {
 		return nil, err
@@ -325,6 +325,11 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 		return nil, errs.ErrNoRows
 	}
 	tp := new(T)
+	// TODO: 讀取元數據
+	s.model, err = s.db.r.Get(tp)
+	//if err != nil {
+	//	return nil, err
+	//}
 	return tp, nil
 }
 

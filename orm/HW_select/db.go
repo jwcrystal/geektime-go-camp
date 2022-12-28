@@ -6,8 +6,8 @@ import (
 )
 
 type DB struct {
-	model *model.Model
-	db    *sql.DB
+	r  model.Registry
+	db *sql.DB
 }
 
 type DBOption func(*DB)
@@ -22,6 +22,7 @@ func Open(driver string, dsn string, opts ...DBOption) (*DB, error) {
 
 func OpenDB(db *sql.DB, opts ...DBOption) (*DB, error) {
 	ret := &DB{
+		r:  model.NewRegistry(),
 		db: db,
 	}
 	for _, opt := range opts {
