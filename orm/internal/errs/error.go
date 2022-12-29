@@ -6,12 +6,17 @@ import (
 )
 
 var (
-	ErrPointerOnly = errors.New("orm: 只支持指向結構體的一級指針")
-	ErrNoRows      = errors.New("orm: no data")
+	ErrPointerOnly            = errors.New("orm: 只支持指向結構體的一級指針")
+	ErrNoRows                 = errors.New("orm: no data")
+	ErrTooManyReturnedColumns = errors.New("orm: 過多 column")
 )
 
 func NewErrUnknownField(name string) error {
 	return fmt.Errorf("orm: unknown field %s", name)
+}
+
+func NewErrUnknownColumn(name string) error {
+	return fmt.Errorf("orm: unknown column %s", name)
 }
 
 // @ErrUnsupportedExpression 40001 原因是你输入了乱七八糟的类型
@@ -19,6 +24,11 @@ func NewErrUnknownField(name string) error {
 func NewErrUnsupportedExpression(expr any) error {
 	return fmt.Errorf("orm: 不支持表達式類型 %v", expr)
 }
-func NewErrUnsupportedSelectable(expr any) error {
-	return fmt.Errorf("orm: 不支持目標列 %v", expr)
+
+func NewErrUnsupportedSelectable(exp any) error {
+	return fmt.Errorf("orm: 不支持目標列 %v", exp)
+}
+
+func NewErrInvalidTagContent(tag string) error {
+	return fmt.Errorf("orm: 錯誤標籤設定 - %s", tag)
 }

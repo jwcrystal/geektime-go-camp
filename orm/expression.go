@@ -5,14 +5,16 @@ type RawExpr struct {
 	args []any
 }
 
+func (r RawExpr) selectable() {}
+
+func (RawExpr) expr() {}
+
 func Raw(expr string, args ...any) RawExpr {
 	return RawExpr{
 		raw:  expr,
 		args: args,
 	}
 }
-
-func (RawExpr) expr() {}
 
 func (r RawExpr) AsPredicate() Predicate {
 	return Predicate{

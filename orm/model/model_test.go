@@ -8,10 +8,10 @@ import (
 )
 
 type TestModel struct {
-	Id        int64
-	FirstName string
-	Age       int8
-	LastName  *sql.NullString
+	Id        int64           `column:"id"`
+	FirstName string          `column:"first_name"`
+	Age       int8            `column:"age"`
+	LastName  *sql.NullString `column:"last_name"`
 }
 
 func Test_parseModel(t *testing.T) {
@@ -31,7 +31,7 @@ func Test_parseModel(t *testing.T) {
 			entity: &TestModel{},
 			wantModel: &Model{
 				TableName: "test_model",
-				FieldMap: map[string]*field{
+				FieldMap: map[string]*Field{
 					"Id": {
 						ColName: "id",
 					},
@@ -63,9 +63,10 @@ func Test_parseModel(t *testing.T) {
 			wantErr: errs.ErrPointerOnly,
 		},
 	}
+	r := &registry{}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			model, err := ParseModel(tc.entity)
+			model, err := r.parseModel(tc.entity)
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
 				return
