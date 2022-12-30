@@ -12,7 +12,10 @@ type Value interface {
 	SetColumns(rows *sql.Rows) error
 }
 
-type Creator func(val any, meta *model.Model) Value
+// Creator 類似函數式工廠方法
+type Creator func(entity any, model *model.Model) Value
+
+//type Creator func(val any, meta *model.Model) Value
 
 //// ResultSetHandler 另一種可行的設計方案
 //type ResultSetHandler interface {

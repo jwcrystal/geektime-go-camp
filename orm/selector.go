@@ -4,9 +4,7 @@ import (
 	"context"
 	"geektime-go/orm/internal/errs"
 	"geektime-go/orm/model"
-	"reflect"
 	"strings"
-	"unsafe"
 )
 
 //type Selector[T any] interface {
@@ -310,7 +308,7 @@ func (s *Selector[T]) buildAs(alias string) {
 	}
 }
 
-// Get 基於反射構造結構集
+// Get 基於反射和 unsafe 構造結構集
 func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	query, err := s.Build()
 	if err != nil {
@@ -328,99 +326,48 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 		return nil, errs.ErrNoRows
 	}
 
-	// reflect 構造數據集
 	tp := new(T)
-	cs, err := rows.Columns()
+	m, err := s.db.r.Get(tp)
 	if err != nil {
 		return nil, err
 	}
-	vals := make([]any, 0, len(cs))
-	// 針對 column 產生 model 字段的類型指針
-	for _, c := range cs {
-		for _, fd := range s.model.FieldMap {
-			if fd.ColName == c {
-				// 反射建立一個實例
-				// 這個實例是原本類型的指針類型
-				// e.g. fd.Type = int, val 則是 *int
-				val := reflect.New(fd.Type)
-				vals = append(vals, val.Interface())
-			}
-		}
-	}
-	// 第一個考量: 類型要匹配
-	// 第二個考量: 順序要匹配
-	// e.g.
-	// SELECT id, first_name, age, last_name
-	// SELECT first_name, id, age, last_name
-	rows.Scan(vals...)
-	// 把 vals 塞回去 結果 tp 裡面
-	tpValue := reflect.ValueOf(tp)
-	for i, c := range cs {
-		for _, fd := range s.model.FieldMap {
-			if fd.ColName == c {
-				tpValue.Elem().FieldByName(fd.GoName).
-					Set(reflect.ValueOf(vals[i]).Elem())
-			}
-		}
-	}
+	//var creator valuer.Creator
+	val := s.db.valCreator(tp, m)
+	err = val.SetColumns(rows)
+
+	// 接口定義好後，做兩件事：
+	// - 用新接口改造上層
+	// - 再來提供一個不同的實現
+
 	return tp, err
 }
 
-// GetV1 基於 unsafe 構造結構集
-func (s *Selector[T]) GetV1(ctx context.Context) (*T, error) {
-	query, err := s.Build()
-	if err != nil {
-		return nil, err
-	}
-	// s.db 是 Selector 結構體 定義的 DB
-	// s.db.db 是 結構體裡面使用的 sql.DB
-	// 採用 QueryContext，可以跟 GetMulti 復用同一份處理結果集代碼
-	rows, err := s.db.db.QueryContext(ctx, query.SQL, query.Args...)
-	if err != nil {
-		return nil, err
-	}
-
-	if !rows.Next() {
-		return nil, errs.ErrNoRows
-	}
-
-	// unsafe 構造數據集
-	tp := new(T)
-	// 起始地址
-	addr := reflect.ValueOf(tp).UnsafePointer()
-	cs, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-	vals := make([]any, 0, len(cs))
-	for _, c := range cs {
-		fd, ok := s.model.ColumnMap[c]
-		if !ok {
-			return nil, errs.ErrTooManyReturnedColumns
-		}
-
-		// 計算字段地址
-		// 計算字段偏移量
-		// 得到字段真實地址：字段起始位址 + 字段偏移量
-		// 在真實地址創建對象
-		fdAddress := unsafe.Pointer(uintptr(addr) + fd.Offset)
-		// 反射建立一個實例
-		// 這個實例是原本類型的指針類型
-		// e.g. fd.Type = int, val 則是 *int
-		val := reflect.NewAt(fd.Type, fdAddress)
-		vals = append(vals, val.Interface())
-	}
-
-	err = rows.Scan(vals...)
-
-	//s.model, err = s.db.r.Get(tp)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//val := s.db.valCreator(tp, s.model)
-	//err = val.SetColumns(rows)
-	return tp, err
-}
+//// GetV1 基於 unsafe 構造結構集
+//func (s *Selector[T]) GetV1(ctx context.Context) (*T, error) {
+//	query, err := s.Build()
+//	if err != nil {
+//		return nil, err
+//	}
+//	// s.db 是 Selector 結構體 定義的 DB
+//	// s.db.db 是 結構體裡面使用的 sql.DB
+//	// 採用 QueryContext，可以跟 GetMulti 復用同一份處理結果集代碼
+//	rows, err := s.db.db.QueryContext(ctx, query.SQL, query.Args...)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	if !rows.Next() {
+//		return nil, errs.ErrNoRows
+//	}
+//
+//	//s.model, err = s.db.r.Get(tp)
+//	//if err != nil {
+//	//	return nil, err
+//	//}
+//	//val := s.db.valCreator(tp, s.model)
+//	//err = val.SetColumns(rows)
+//	return tp, err
+//}
 
 func (s *Selector[T]) GetMulti(ctx context.Context) (*T, error) {
 	//TODO implement me

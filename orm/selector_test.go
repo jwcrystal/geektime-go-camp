@@ -505,7 +505,7 @@ func TestSelector_Get(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			//var ret any
-			ret, err := NewSelector[TestModel](db).GetV1(context.Background())
+			ret, err := NewSelector[TestModel](db).Get(context.Background())
 			assert.Equal(t, tc.wantError, err)
 			if err != nil {
 				return

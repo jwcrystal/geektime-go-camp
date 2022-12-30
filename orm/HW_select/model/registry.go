@@ -1,7 +1,7 @@
 package model
 
 import (
-	"geektime-go/orm/HW_select/internal/errs"
+	"geektime-go/orm/internal/errs"
 	"reflect"
 	"strings"
 	"sync"
