@@ -223,6 +223,7 @@ func TestSelector_GroundBy(t *testing.T) {
 }
 
 func TestSelector_Build(t *testing.T) {
+	db := memoryDB(t)
 	var testCases = []struct {
 		name      string
 		q         QueryBuilder
@@ -239,7 +240,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "with from",
-			q:    (&Selector[TestModel]{}).From("`test_table`"),
+			q:    NewSelector[TestModel](db).From("`test_table`"),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `test_table`;",
 				Args: nil,
@@ -247,7 +248,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "empty from",
-			q:    (&Selector[TestModel]{}).From(""),
+			q:    NewSelector[TestModel](db).From(""),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `test_model`;",
 				Args: nil,
@@ -255,7 +256,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "from db",
-			q:    (&Selector[TestModel]{}).From("`test_db`.`test_table`"),
+			q:    NewSelector[TestModel](db).From("`test_db`.`test_table`"),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `test_db`.`test_table`;",
 				Args: nil,
@@ -263,7 +264,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "single and simple predicate",
-			q: (&Selector[TestModel]{}).From("`test_table`").
+			q: NewSelector[TestModel](db).From("`test_table`").
 				Where(C("Id").Eq(1)),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `test_table` WHERE `id` = ?;",
@@ -272,7 +273,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "multi-predicate",
-			q: (&Selector[TestModel]{}).From("`test_table`").
+			q: NewSelector[TestModel](db).From("`test_table`").
 				Where(C("Id").Eq(1), C("Age").Eq(12)),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `test_table` WHERE (`id` = ?) AND (`age` = ?);",
@@ -281,7 +282,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "and",
-			q: (&Selector[TestModel]{}).From("`test_table`").
+			q: NewSelector[TestModel](db).From("`test_table`").
 				Where(C("Id").Eq(1).And(C("Age").Eq(12))),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `test_table` WHERE (`id` = ?) AND (`age` = ?);",
@@ -290,7 +291,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "or",
-			q: (&Selector[TestModel]{}).From("`test_table`").
+			q: NewSelector[TestModel](db).From("`test_table`").
 				Where(C("Id").Eq(1).Or(C("Id").Eq(12))),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `test_table` WHERE (`id` = ?) OR (`id` = ?);",
@@ -299,7 +300,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "not",
-			q: (&Selector[TestModel]{}).From("`test_table`").
+			q: NewSelector[TestModel](db).From("`test_table`").
 				Where(Not(C("Id").Eq(1))),
 			wantQuery: &Query{
 				// NOT 前面有兩個空格，因為沒有特別處理
@@ -310,17 +311,17 @@ func TestSelector_Build(t *testing.T) {
 		{
 			// 使用 RawExpr
 			name: "raw expression",
-			q: (&Selector[TestModel]{}).
+			q: NewSelector[TestModel](db).
 				Where(Raw("`age` < ?", 18).AsPredicate()),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `test_model` WHERE (`age` < ?);",
+				SQL:  "SELECT * FROM `test_model` WHERE `age` < ?;",
 				Args: []any{18},
 			},
 		},
 		{
 			// 非法列，需要擷取 DB 的 schema
 			name:    "invalid column",
-			q:       (&Selector[TestModel]{}).Where(Not(C("Invalid").Eq(1))),
+			q:       NewSelector[TestModel](db).Where(Not(C("Invalid").Eq(1))),
 			wantErr: errs.NewErrUnknownField("Invalid"),
 		},
 	}
