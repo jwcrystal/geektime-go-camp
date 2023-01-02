@@ -21,7 +21,7 @@ func TestMiddlewareBuilderE2E(t *testing.T) {
 	log := func(next web.HandleFunc) web.HandleFunc {
 		return func(ctx *web.Context) {
 			fmt.Println(&ctx.MatchedRoute)
-			ctx.Res.Write([]byte(ctx.MatchedRoute))
+			ctx.Resp.Write([]byte(ctx.MatchedRoute))
 			next(ctx)
 		}
 	}
@@ -29,16 +29,16 @@ func TestMiddlewareBuilderE2E(t *testing.T) {
 	h.UseV1("Get", "/user", func(next web.HandleFunc) web.HandleFunc {
 		return func(ctx *web.Context) {
 			fmt.Println(&ctx.MatchedRoute)
-			ctx.Res.Write([]byte(ctx.MatchedRoute + " 1"))
+			ctx.Resp.Write([]byte(ctx.MatchedRoute + " 1"))
 			next(ctx)
 		}
 	})
 
 	//h.Get("/", func(ctx *web.Context) {
-	//	ctx.Res.Write([]byte("Hello accessLog"))
+	//	ctx.Resp.Write([]byte("Hello accessLog"))
 	//})
 	//h.Get("/user", func(ctx *web.Context) {
-	//	ctx.Res.Write([]byte("Hello, user"))
+	//	ctx.Resp.Write([]byte("Hello, user"))
 	//})
 
 	h.Start(":8081")

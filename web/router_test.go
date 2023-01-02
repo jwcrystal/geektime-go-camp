@@ -982,7 +982,7 @@ func TestRouter_findRoute_Middleware(t *testing.T) {
 	var mdlBuilder = func(i byte) Middleware {
 		return func(next HandleFunc) HandleFunc {
 			return func(ctx *Context) {
-				ctx.ResData = append(ctx.ResData, i)
+				ctx.RespData = append(ctx.RespData, i)
 				next(ctx)
 			}
 		}
@@ -1093,14 +1093,14 @@ func TestRouter_findRoute_Middleware(t *testing.T) {
 			mdls := mi.middlewares
 			var root HandleFunc = func(ctx *Context) {
 				// 使用 string 可读性比较高
-				assert.Equal(t, tc.wantResp, string(ctx.ResData))
+				assert.Equal(t, tc.wantResp, string(ctx.RespData))
 			}
 			for i := len(mdls) - 1; i >= 0; i-- {
 				root = mdls[i](root)
 			}
 			// 开始调度
 			root(&Context{
-				ResData: make([]byte, 0, len(tc.wantResp)),
+				RespData: make([]byte, 0, len(tc.wantResp)),
 			})
 		})
 	}
@@ -1281,7 +1281,7 @@ func Benchmark_findRoute1_Middleware(b *testing.B) {
 	var mdlBuilder = func(i byte) Middleware {
 		return func(next HandleFunc) HandleFunc {
 			return func(ctx *Context) {
-				ctx.ResData = append(ctx.ResData, i)
+				ctx.RespData = append(ctx.RespData, i)
 				next(ctx)
 			}
 		}

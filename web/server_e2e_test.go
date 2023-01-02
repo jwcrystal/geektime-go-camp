@@ -13,18 +13,20 @@ func TestHttpServer(t *testing.T) {
 
 	s.UseV1(http.MethodGet, "/", func(next HandleFunc) HandleFunc {
 		return func(ctx *Context) {
-			ctx.Res.Write([]byte(fmt.Sprintf("hello 111 %s\n", ctx.Req.URL.Path)))
+			fmt.Println("hello, world")
+			ctx.Resp.Write([]byte(fmt.Sprintf("hello 111 %s\n", ctx.Req.URL.Path)))
 			next(ctx)
 		}
 	})
 	s.Get("/", func(ctx *Context) {
-		ctx.Res.Write([]byte("hello, world"))
+		fmt.Println("hello, world")
+		ctx.Resp.Write([]byte("hello, world"))
 	})
 	s.Get("/abc/*", func(ctx *Context) {
-		ctx.Res.Write([]byte(fmt.Sprintf("hello, %s", ctx.Req.URL.Path)))
+		ctx.Resp.Write([]byte(fmt.Sprintf("hello, %s", ctx.Req.URL.Path)))
 	})
 	s.Get("/user/:username", func(ctx *Context) {
-		ctx.Res.Write([]byte(fmt.Sprintf("hello, %s", ctx.PathParams["username"])))
+		ctx.Resp.Write([]byte(fmt.Sprintf("hello, %s", ctx.PathParams["username"])))
 	})
 
 	err := s.Start(":8081")

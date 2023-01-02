@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -20,14 +21,24 @@ var _ Server = &HttpServer{}
 type HttpServer struct {
 	router      *Router
 	middlewares []Middleware
+
+	log       func(msg string, args ...any)
+	tplEngine TemplateEngine
 }
 type HttpServerOption func(server *HttpServer)
 
-func NewHttpServer() *HttpServer {
-	return &HttpServer{
-		NewRouter(),
-		nil,
+func NewHttpServer(opts ...HttpServerOption) *HttpServer {
+	res := &HttpServer{
+		router: NewRouter(),
+		log: func(msg string, args ...any) {
+			fmt.Printf(msg, args...)
+		},
 	}
+
+	for _, opt := range opts {
+		opt(res)
+	}
+	return res
 }
 
 // NewHttpServerV1 擴展性不好
@@ -56,12 +67,19 @@ func ServerWithMiddlewares(mdls ...Middleware) HttpServerOption {
 	}
 }
 
+func ServerWithTemplateEngine(tplEngine TemplateEngine) HttpServerOption {
+	return func(server *HttpServer) {
+		server.tplEngine = tplEngine
+	}
+}
+
 // ServerHTTP is the entry endpoint of HttpServer
 func (h *HttpServer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	// endpoint logic
 	ctx := &Context{
-		Req: request,
-		Res: writer,
+		Req:       request,
+		Resp:      writer,
+		tplEngine: h.tplEngine,
 	}
 	// find the routes, and launch handleFunc
 	//h.serve(ctx)
@@ -83,12 +101,12 @@ func (h *HttpServer) ServeHTTP(writer http.ResponseWriter, request *http.Request
 	root(ctx)
 }
 
-func (s *HttpServer) Use(mdls ...Middleware) {
-	if s.middlewares == nil {
-		s.middlewares = mdls
+func (h *HttpServer) Use(mdls ...Middleware) {
+	if h.middlewares == nil {
+		h.middlewares = mdls
 		return
 	}
-	s.middlewares = append(s.middlewares, mdls...)
+	h.middlewares = append(h.middlewares, mdls...)
 }
 
 func (h *HttpServer) UseV1(method string, path string, mdls ...Middleware) {
@@ -121,17 +139,17 @@ func (h *HttpServer) Get(path string, handleFunc HandleFunc) {
 }
 
 func (h *HttpServer) Post(path string, handleFunc HandleFunc) {
-	h.addRoute(http.MethodGet, path, handleFunc)
+	h.addRoute(http.MethodPost, path, handleFunc)
 }
 
 func (h *HttpServer) serve(ctx *Context) {
 	// find route
 	// before route
-	route, ok := h.router.findRoute(ctx.Req.Method, ctx.Req.URL.Path)
+	route, ok := h.router.findRouteWithMiddleware(ctx.Req.Method, ctx.Req.URL.Path)
 	// after route
 	if !ok || route.node.handler == nil || route.node == nil {
-		ctx.Res.WriteHeader(http.StatusNotFound)
-		ctx.Res.Write([]byte("Not found"))
+		ctx.Resp.WriteHeader(http.StatusNotFound)
+		ctx.Resp.Write([]byte("Not found"))
 		return
 	}
 	ctx.PathParams = route.pathParams
@@ -143,11 +161,11 @@ func (h *HttpServer) serve(ctx *Context) {
 	// after execute
 }
 
-func (s *HttpServer) flashResp(ctx *Context) {
-	if ctx.ResStatusCode > 0 {
-		ctx.Res.WriteHeader(ctx.ResStatusCode)
+func (h *HttpServer) flashResp(ctx *Context) {
+	if ctx.RespStatusCode > 0 {
+		ctx.Resp.WriteHeader(ctx.RespStatusCode)
 	}
-	_, err := ctx.Res.Write(ctx.ResData)
+	_, err := ctx.Resp.Write(ctx.RespData)
 	if err != nil {
 		log.Fatalln("回写响应失败", err)
 	}
