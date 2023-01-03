@@ -1,0 +1,11 @@
+<html>
+<body>
+<form action="/login" method="post">
+    Email: <input name="email" type="email" placeholder="email..">
+    Password: <input name="password" type="password" placeholder="password..">
+    Redirect: <input name="client_id" hidden="hidden" type="password" value="{{.ClientId}}">
+    <button type="submit">Login</button>
+    <a href="{{ .RedirectURL }}">微信登录</a>
+</form>
+</body>
+</html>
