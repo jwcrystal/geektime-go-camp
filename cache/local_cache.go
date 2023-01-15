@@ -52,7 +52,7 @@ func NewBuildInMapCache(interval time.Duration, opts ...BuildInMapCacheOption) *
 				res.mu.Lock()
 				i := 0
 				for key, val := range res.data {
-					// 內存筆數 控制
+					// 遍歷緩存筆數控制
 					if i > 10000 {
 						return
 					}
