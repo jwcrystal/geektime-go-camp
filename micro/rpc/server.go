@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"errors"
+	compressor "geektime-go/micro/rpc/Compressor"
 	"geektime-go/micro/rpc/message"
 	"geektime-go/micro/rpc/serialize"
 	"geektime-go/micro/rpc/serialize/json"
@@ -16,14 +17,17 @@ import (
 type Server struct {
 	services    map[string]reflectionStub
 	serializers map[uint8]serialize.Serializer
+	compressors map[uint8]compressor.Compressor
 }
 
 func NewServer() *Server {
 	res := &Server{
 		services:    make(map[string]reflectionStub, 16),
 		serializers: make(map[uint8]serialize.Serializer, 4),
+		compressors: make(map[uint8]compressor.Compressor, 4),
 	}
 	res.RegisterSerializer(&json.Serializer{})
+	res.RegisterCompressor(compressor.DefaultCompressor{})
 	return res
 }
 
@@ -31,11 +35,16 @@ func (s *Server) RegisterSerializer(sl serialize.Serializer) {
 	s.serializers[sl.Code()] = sl
 }
 
+func (s *Server) RegisterCompressor(cc compressor.Compressor) {
+	s.compressors[cc.Code()] = cc
+}
+
 func (s *Server) RegisterService(service Service) {
 	s.services[service.Name()] = reflectionStub{
 		s:           service,
 		value:       reflect.ValueOf(service),
 		serializers: s.serializers,
+		compressor:  s.compressors,
 	}
 }
 
@@ -107,7 +116,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 }
 
 func (s *Server) Invoke(ctx context.Context, req *message.Request) (*message.Response, error) {
-	//if isOneway(ctx) {
+	// if isOneway(ctx) {
 	//	go func() {
 	//		service, ok := s.services[req.ServiceName]
 	//		resp := &message.Response{
@@ -137,7 +146,7 @@ func (s *Server) Invoke(ctx context.Context, req *message.Request) (*message.Res
 		return nil, errors.New("micro: 微服务服务端 oneway 请求")
 	}
 	respData, err := service.invoke(ctx, req)
-	//if isOneway(ctx) {
+	// if isOneway(ctx) {
 	//	return nil, errors.New("micro: 微服务服务端 oneway 请求")
 	//}
 	resp.Data = respData
@@ -151,6 +160,7 @@ type reflectionStub struct {
 	s           Service
 	value       reflect.Value
 	serializers map[uint8]serialize.Serializer
+	compressor  map[uint8]compressor.Compressor
 }
 
 func (s *reflectionStub) invoke(ctx context.Context, req *message.Request) ([]byte, error) {
@@ -163,7 +173,15 @@ func (s *reflectionStub) invoke(ctx context.Context, req *message.Request) ([]by
 	if !ok {
 		return nil, errors.New("micro: 不支持的序列化协议")
 	}
-	err := serializer.Decode(req.Data, inReq.Interface())
+	c, ok := s.compressor[req.Compressor]
+	if !ok {
+		return nil, errors.New("micro: 不支持的壓縮算法")
+	}
+	decompressData, err := c.Decompress(req.Data)
+	if err != nil {
+		return nil, err
+	}
+	err = serializer.Decode(decompressData, inReq.Interface())
 	if err != nil {
 		return nil, err
 	}

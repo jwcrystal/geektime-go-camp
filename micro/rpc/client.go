@@ -3,23 +3,25 @@ package rpc
 import (
 	"context"
 	"errors"
+	compressor "geektime-go/micro/rpc/Compressor"
 	"geektime-go/micro/rpc/message"
 	"geektime-go/micro/rpc/serialize"
 	"geektime-go/micro/rpc/serialize/json"
-	"github.com/silenceper/pool"
 	"net"
 	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/silenceper/pool"
 )
 
 // InitService 要为 GetById 之类的函数类型的字段赋值
 func (c *Client) InitService(service Service) error {
 	// 在这里初始化一个 Proxy
-	return setFuncField(service, c, c.serializer)
+	return setFuncField(service, c, c.serializer, c.compressor)
 }
 
-func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
+func setFuncField(service Service, p Proxy, s serialize.Serializer, c compressor.Compressor) error {
 	if service == nil {
 		return errors.New("rpc: 不支持 nil")
 	}
@@ -113,6 +115,7 @@ const numOfLengthBytes = 8
 type Client struct {
 	pool       pool.Pool
 	serializer serialize.Serializer
+	compressor compressor.Compressor
 }
 
 type ClientOption func(client *Client)
@@ -120,6 +123,12 @@ type ClientOption func(client *Client)
 func ClientWithSerializer(sl serialize.Serializer) ClientOption {
 	return func(client *Client) {
 		client.serializer = sl
+	}
+}
+
+func ClientWithCompressor(c compressor.Compressor) ClientOption {
+	return func(client *Client) {
+		client.compressor = c
 	}
 }
 
@@ -183,7 +192,7 @@ func (c *Client) doInvoke(ctx context.Context, req *message.Request) (*message.R
 		return nil, err
 	}
 	// 这里才算是中断
-	//if ctx.Err() != nil {
+	// if ctx.Err() != nil {
 	//	return nil, ctx.Err()
 	//}
 	return message.DecodeResp(resp), nil
@@ -196,7 +205,7 @@ func (c *Client) send(ctx context.Context, data []byte) ([]byte, error) {
 	}
 	conn := val.(net.Conn)
 	defer func() {
-		c.pool.Put(val)
+		_ = c.pool.Put(val)
 	}()
 	_, err = conn.Write(data)
 	if err != nil {

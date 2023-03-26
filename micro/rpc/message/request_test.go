@@ -16,7 +16,7 @@ func TestEncodeDecode(t *testing.T) {
 			req: &Request{
 				RequestID:   123,
 				Version:     12,
-				Compresser:  13,
+				Compressor:  13,
 				Serializer:  14,
 				ServiceName: "user-service",
 				MethodName:  "GetById",
@@ -33,7 +33,7 @@ func TestEncodeDecode(t *testing.T) {
 			req: &Request{
 				RequestID:   123,
 				Version:     12,
-				Compresser:  13,
+				Compressor:  13,
 				Serializer:  14,
 				ServiceName: "user-service",
 				MethodName:  "GetById",
@@ -60,7 +60,7 @@ func TestEncodeDecode(t *testing.T) {
 			req: &Request{
 				RequestID:   123,
 				Version:     12,
-				Compresser:  13,
+				Compressor:  13,
 				Serializer:  14,
 				ServiceName: "user-service",
 				MethodName:  "GetById",
@@ -72,7 +72,7 @@ func TestEncodeDecode(t *testing.T) {
 			req: &Request{
 				RequestID:   123,
 				Version:     12,
-				Compresser:  13,
+				Compressor:  13,
 				Serializer:  14,
 				ServiceName: "user-service",
 				MethodName:  "GetById",

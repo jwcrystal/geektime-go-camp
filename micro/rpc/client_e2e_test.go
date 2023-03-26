@@ -1,14 +1,18 @@
+//go:build e2e
+
 package rpc
 
 import (
 	"context"
 	"errors"
-	"gitee.com/geektime-geekbang/geektime-go/micro/proto/gen"
-	"gitee.com/geektime-geekbang/geektime-go/micro/rpc/serialize/proto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"geektime-go/micro/proto/gen"
+	"geektime-go/micro/rpc/Compressor/gzip"
+	"geektime-go/micro/rpc/serialize/proto"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInitServiceProto(t *testing.T) {
@@ -16,6 +20,7 @@ func TestInitServiceProto(t *testing.T) {
 	service := &UserServiceServer{}
 	server.RegisterService(service)
 	server.RegisterSerializer(&proto.Serializer{})
+	server.RegisterCompressor(gzip.GzipCompressor{})
 	go func() {
 		err := server.Start("tcp", ":8081")
 		t.Log(err)
@@ -23,7 +28,7 @@ func TestInitServiceProto(t *testing.T) {
 	time.Sleep(time.Second * 3)
 
 	usClient := &UserService{}
-	client, err := NewClient(":8081", ClientWithSerializer(&proto.Serializer{}))
+	client, err := NewClient(":8081", ClientWithSerializer(&proto.Serializer{}), ClientWithCompressor(gzip.GzipCompressor{}))
 	require.NoError(t, err)
 	err = client.InitService(usClient)
 	require.NoError(t, err)
@@ -91,15 +96,15 @@ func TestInitClientProxy(t *testing.T) {
 	time.Sleep(time.Second * 3)
 
 	usClient := &UserService{}
-	//usClientOneway := &UserService{}
+	// usClientOneway := &UserService{}
 	client, err := NewClient(":8081")
 	require.NoError(t, err)
 	err = client.InitService(usClient)
-	//err = client.InitService(usClientOneway, true)
+	// err = client.InitService(usClientOneway, true)
 	require.NoError(t, err)
 
-	//ctx := context.WithValue(context.Background(), "oneway", true)
-	//usClient.GetById(ctx, req)
+	// ctx := context.WithValue(context.Background(), "oneway", true)
+	// usClient.GetById(ctx, req)
 
 	testCases := []struct {
 		name string
@@ -144,34 +149,34 @@ func TestInitClientProxy(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mock()
-			//resp, er := usClient.GetById(CtxWithOneway(context.Background()), &GetByIdReq{})
+			// resp, er := usClient.GetById(CtxWithOneway(context.Background()), &GetByIdReq{})
 			// 我这边就不能用 resp 了，因为啥都没有
 			resp, er := usClient.GetById(context.Background(), &GetByIdReq{Id: 123})
-			//var respAsync *GetByIdResp
-			//var wg sync.WaitGroup
-			//wg.Add(1)
-			//go func() {
+			// var respAsync *GetByIdResp
+			// var wg sync.WaitGroup
+			// wg.Add(1)
+			// go func() {
 			//	respAsync, err = usClient.GetById(context.Background(), &GetByIdReq{Id: 123})
 			//	wg.Done()
-			//}()
+			// }()
 			//
 			//// 干了很多事
 			//
 			//// 使用 respAsync
-			//wg.Wait()
-			//respAsync.Msg
+			// wg.Wait()
+			// respAsync.Msg
 
 			// 回调
-			//go func() {
+			// go func() {
 			//	respAsync, err1 := usClient.GetById(context.Background(), &GetByIdReq{Id: 123})
 			//	// 随便你怎么处理
 			//	respAsync.Msg
-			//}()
+			// }()
 
 			// 虚假的单向调用
-			//go func() {
+			// go func() {
 			//	_, _ = usClient.GetById(context.Background(), &GetByIdReq{Id: 123})
-			//}()
+			// }()
 
 			assert.Equal(t, tc.wantErr, er)
 			assert.Equal(t, tc.wantResp, resp)
@@ -183,6 +188,7 @@ func TestOneway(t *testing.T) {
 	server := NewServer()
 	service := &UserServiceServer{}
 	server.RegisterService(service)
+	server.RegisterCompressor(gzip.GzipCompressor{})
 	go func() {
 		err := server.Start("tcp", ":8081")
 		t.Log(err)
